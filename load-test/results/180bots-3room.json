@@ -1,0 +1,56 @@
+{
+  "scenario": {
+    "bots": 180,
+    "rooms": 3,
+    "rate": 5,
+    "duration": 60
+  },
+  "connections": {
+    "ok": 180,
+    "fail": 0,
+    "droppedDuringTest": 0
+  },
+  "latencyMs": {
+    "samples": 53071,
+    "p50": 54,
+    "p95": 101,
+    "p99": 114,
+    "max": 131,
+    "coalescedSeqs": 0
+  },
+  "sent": {
+    "moves": 53164,
+    "broadcasts": 99,
+    "reactions": 221
+  },
+  "received": {
+    "perSec": 2034.1,
+    "perBotPerSec": 11.3,
+    "kbPerSec": 4056.8,
+    "byType": {
+      "SNAPSHOT": 108000,
+      "BROADCAST": 720,
+      "REACTION": 13260,
+      "ERROR": 74
+    }
+  },
+  "server": {
+    "samples": 59,
+    "cores": 20,
+    "cpuPct": {
+      "avg": 1.3,
+      "max": 8.9
+    },
+    "memoryUsedMB": {
+      "avg": 222.5,
+      "max": 326.3
+    },
+    "heapUsedMB": {
+      "avg": 157,
+      "max": 260.8,
+      "first10pctAvg": 173.9,
+      "last10pctAvg": 155.5
+    }
+  },
+  "attempts": 1
+}

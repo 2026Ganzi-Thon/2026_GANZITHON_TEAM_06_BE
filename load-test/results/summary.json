@@ -1,0 +1,455 @@
+[
+  {
+    "label": "한 방에 몰림",
+    "scenario": {
+      "bots": 30,
+      "rooms": 1,
+      "rate": 5,
+      "duration": 60
+    },
+    "connections": {
+      "ok": 30,
+      "fail": 0,
+      "droppedDuringTest": 0
+    },
+    "latencyMs": {
+      "samples": 8862,
+      "p50": 50,
+      "p95": 99,
+      "p99": 113,
+      "max": 137,
+      "coalescedSeqs": 0
+    },
+    "sent": {
+      "moves": 8862,
+      "broadcasts": 20,
+      "reactions": 35
+    },
+    "received": {
+      "perSec": 319.7,
+      "perBotPerSec": 10.7,
+      "kbPerSec": 346.7,
+      "byType": {
+        "SNAPSHOT": 18000,
+        "ERROR": 15,
+        "BROADCAST": 120,
+        "REACTION": 1050
+      }
+    },
+    "server": {
+      "samples": 59,
+      "cores": 20,
+      "cpuPct": {
+        "avg": 0.2,
+        "max": 1.4
+      },
+      "memoryUsedMB": {
+        "avg": 211.4,
+        "max": 297.7
+      },
+      "heapUsedMB": {
+        "avg": 148.8,
+        "max": 235.1,
+        "first10pctAvg": 129.7,
+        "last10pctAvg": 125.4
+      }
+    }
+  },
+  {
+    "label": "3개 방 분산",
+    "scenario": {
+      "bots": 30,
+      "rooms": 3,
+      "rate": 5,
+      "duration": 60
+    },
+    "connections": {
+      "ok": 30,
+      "fail": 0,
+      "droppedDuringTest": 0
+    },
+    "latencyMs": {
+      "samples": 8845,
+      "p50": 50,
+      "p95": 98,
+      "p99": 112,
+      "max": 120,
+      "coalescedSeqs": 0
+    },
+    "sent": {
+      "moves": 8860,
+      "broadcasts": 11,
+      "reactions": 37
+    },
+    "received": {
+      "perSec": 307.9,
+      "perBotPerSec": 10.3,
+      "kbPerSec": 126.8,
+      "byType": {
+        "SNAPSHOT": 17980,
+        "BROADCAST": 120,
+        "REACTION": 370,
+        "ERROR": 3
+      }
+    },
+    "server": {
+      "samples": 59,
+      "cores": 20,
+      "cpuPct": {
+        "avg": 0.2,
+        "max": 1.1
+      },
+      "memoryUsedMB": {
+        "avg": 212.9,
+        "max": 298.2
+      },
+      "heapUsedMB": {
+        "avg": 149.9,
+        "max": 235.3,
+        "first10pctAvg": 174.2,
+        "last10pctAvg": 136.1
+      }
+    }
+  },
+  {
+    "label": "한 방에 몰림",
+    "scenario": {
+      "bots": 90,
+      "rooms": 1,
+      "rate": 5,
+      "duration": 60
+    },
+    "connections": {
+      "ok": 90,
+      "fail": 0,
+      "droppedDuringTest": 0
+    },
+    "latencyMs": {
+      "samples": 26575,
+      "p50": 52,
+      "p95": 104,
+      "p99": 113,
+      "max": 122,
+      "coalescedSeqs": 0
+    },
+    "sent": {
+      "moves": 26588,
+      "broadcasts": 42,
+      "reactions": 106
+    },
+    "received": {
+      "perSec": 1065.5,
+      "perBotPerSec": 11.8,
+      "kbPerSec": 3016.6,
+      "byType": {
+        "SNAPSHOT": 54000,
+        "BROADCAST": 360,
+        "REACTION": 9540,
+        "ERROR": 35
+      }
+    },
+    "server": {
+      "samples": 59,
+      "cores": 20,
+      "cpuPct": {
+        "avg": 1.1,
+        "max": 4.5
+      },
+      "memoryUsedMB": {
+        "avg": 215.9,
+        "max": 299.6
+      },
+      "heapUsedMB": {
+        "avg": 152.8,
+        "max": 236.5,
+        "first10pctAvg": 156.5,
+        "last10pctAvg": 154.8
+      }
+    }
+  },
+  {
+    "label": "3개 방 분산",
+    "scenario": {
+      "bots": 90,
+      "rooms": 3,
+      "rate": 5,
+      "duration": 60
+    },
+    "connections": {
+      "ok": 90,
+      "fail": 0,
+      "droppedDuringTest": 0
+    },
+    "latencyMs": {
+      "samples": 26538,
+      "p50": 61,
+      "p95": 104,
+      "p99": 113,
+      "max": 129,
+      "coalescedSeqs": 0
+    },
+    "sent": {
+      "moves": 26556,
+      "broadcasts": 49,
+      "reactions": 106
+    },
+    "received": {
+      "perSec": 959.2,
+      "perBotPerSec": 10.7,
+      "kbPerSec": 1039.3,
+      "byType": {
+        "SNAPSHOT": 54000,
+        "BROADCAST": 360,
+        "REACTION": 3180,
+        "ERROR": 14
+      }
+    },
+    "server": {
+      "samples": 59,
+      "cores": 20,
+      "cpuPct": {
+        "avg": 0.7,
+        "max": 3.6
+      },
+      "memoryUsedMB": {
+        "avg": 220.1,
+        "max": 304.5
+      },
+      "heapUsedMB": {
+        "avg": 156.9,
+        "max": 241.2,
+        "first10pctAvg": 128.4,
+        "last10pctAvg": 147.7
+      }
+    }
+  },
+  {
+    "label": "한 방에 몰림",
+    "scenario": {
+      "bots": 180,
+      "rooms": 1,
+      "rate": 5,
+      "duration": 60
+    },
+    "connections": {
+      "ok": 180,
+      "fail": 0,
+      "droppedDuringTest": 0
+    },
+    "latencyMs": {
+      "samples": 53074,
+      "p50": 63,
+      "p95": 107,
+      "p99": 116,
+      "max": 133,
+      "coalescedSeqs": 0
+    },
+    "sent": {
+      "moves": 53141,
+      "broadcasts": 98,
+      "reactions": 213
+    },
+    "received": {
+      "perSec": 2454.6,
+      "perBotPerSec": 13.6,
+      "kbPerSec": 11956.7,
+      "byType": {
+        "JOIN": 147,
+        "SNAPSHOT": 108000,
+        "ERROR": 94,
+        "BROADCAST": 720,
+        "REACTION": 38340
+      }
+    },
+    "server": {
+      "samples": 59,
+      "cores": 20,
+      "cpuPct": {
+        "avg": 1.9,
+        "max": 10.9
+      },
+      "memoryUsedMB": {
+        "avg": 241.2,
+        "max": 323.5
+      },
+      "heapUsedMB": {
+        "avg": 175.4,
+        "max": 257.7,
+        "first10pctAvg": 152.4,
+        "last10pctAvg": 141
+      }
+    },
+    "attempts": 1
+  },
+  {
+    "label": "3개 방 분산",
+    "scenario": {
+      "bots": 180,
+      "rooms": 3,
+      "rate": 5,
+      "duration": 60
+    },
+    "connections": {
+      "ok": 180,
+      "fail": 0,
+      "droppedDuringTest": 0
+    },
+    "latencyMs": {
+      "samples": 53071,
+      "p50": 54,
+      "p95": 101,
+      "p99": 114,
+      "max": 131,
+      "coalescedSeqs": 0
+    },
+    "sent": {
+      "moves": 53164,
+      "broadcasts": 99,
+      "reactions": 221
+    },
+    "received": {
+      "perSec": 2034.1,
+      "perBotPerSec": 11.3,
+      "kbPerSec": 4056.8,
+      "byType": {
+        "SNAPSHOT": 108000,
+        "BROADCAST": 720,
+        "REACTION": 13260,
+        "ERROR": 74
+      }
+    },
+    "server": {
+      "samples": 59,
+      "cores": 20,
+      "cpuPct": {
+        "avg": 1.3,
+        "max": 8.9
+      },
+      "memoryUsedMB": {
+        "avg": 222.5,
+        "max": 326.3
+      },
+      "heapUsedMB": {
+        "avg": 157,
+        "max": 260.8,
+        "first10pctAvg": 173.9,
+        "last10pctAvg": 155.5
+      }
+    },
+    "attempts": 1
+  },
+  {
+    "label": "한 방에 몰림",
+    "scenario": {
+      "bots": 300,
+      "rooms": 1,
+      "rate": 5,
+      "duration": 60
+    },
+    "connections": {
+      "ok": 300,
+      "fail": 0,
+      "droppedDuringTest": 0
+    },
+    "latencyMs": {
+      "samples": 88646,
+      "p50": 70,
+      "p95": 114,
+      "p99": 124,
+      "max": 149,
+      "coalescedSeqs": 0
+    },
+    "sent": {
+      "moves": 88652,
+      "broadcasts": 164,
+      "reactions": 361
+    },
+    "received": {
+      "perSec": 4828.8,
+      "perBotPerSec": 16.1,
+      "kbPerSec": 33200.8,
+      "byType": {
+        "JOIN": 80,
+        "SNAPSHOT": 180000,
+        "ERROR": 160,
+        "BROADCAST": 1200,
+        "REACTION": 108300
+      }
+    },
+    "server": {
+      "samples": 59,
+      "cores": 20,
+      "cpuPct": {
+        "avg": 6.2,
+        "max": 20.5
+      },
+      "memoryUsedMB": {
+        "avg": 207.7,
+        "max": 299
+      },
+      "heapUsedMB": {
+        "avg": 144.3,
+        "max": 235.5,
+        "first10pctAvg": 181.5,
+        "last10pctAvg": 168.2
+      }
+    }
+  },
+  {
+    "label": "3개 방 분산",
+    "scenario": {
+      "bots": 300,
+      "rooms": 3,
+      "rate": 5,
+      "duration": 60
+    },
+    "connections": {
+      "ok": 300,
+      "fail": 0,
+      "droppedDuringTest": 0
+    },
+    "latencyMs": {
+      "samples": 88636,
+      "p50": 63,
+      "p95": 103,
+      "p99": 115,
+      "max": 126,
+      "coalescedSeqs": 0
+    },
+    "sent": {
+      "moves": 88784,
+      "broadcasts": 163,
+      "reactions": 363
+    },
+    "received": {
+      "perSec": 3626.6,
+      "perBotPerSec": 12.1,
+      "kbPerSec": 11169.9,
+      "byType": {
+        "JOIN": 23,
+        "SNAPSHOT": 180000,
+        "ERROR": 134,
+        "BROADCAST": 1200,
+        "REACTION": 36300
+      }
+    },
+    "server": {
+      "samples": 59,
+      "cores": 20,
+      "cpuPct": {
+        "avg": 3.6,
+        "max": 10.1
+      },
+      "memoryUsedMB": {
+        "avg": 214.4,
+        "max": 322.9
+      },
+      "heapUsedMB": {
+        "avg": 150.9,
+        "max": 259.4,
+        "first10pctAvg": 144.3,
+        "last10pctAvg": 169.7
+      }
+    }
+  }
+]

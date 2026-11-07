@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>잠시 정차합니다 · 실시간 데모</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#14161c; --panel:#1e2129; --line:#2d313c; --text:#e6e8ee; --muted:#8b91a0; --accent:#7cc4ff; --me:#ffd166; --err:#ff6b6b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui, sans-serif; padding:16px; }
+  h1 { font-size:18px; margin:0 0 12px; }
+  .wrap { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
+  canvas { background:#2a3b2f; image-rendering:pixelated; border:2px solid var(--line); cursor:crosshair; max-width:100%; }
+  .side { width:300px; display:flex; flex-direction:column; gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
+  .card h2 { font-size:13px; color:var(--muted); margin:0 0 8px; font-weight:600; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .big { font-size:28px; font-weight:700; }
+  select, button { font:inherit; color:var(--text); background:#2a2e38; border:1px solid var(--line); border-radius:6px; padding:6px 8px; }
+  button { cursor:pointer; } button:hover:not(:disabled) { border-color:var(--accent); } button:disabled { opacity:.5; cursor:default; }
+  #onair { min-height:64px; }
+  #onair .msg { font-size:15px; margin-bottom:8px; }
+  .muted { color:var(--muted); font-size:12px; }
+  #error { color:var(--err); font-size:12px; min-height:16px; }
+  #log { max-height:160px; overflow:auto; font-size:12px; color:var(--muted); margin:0; padding-left:16px; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--err); }
+  .dot.on { background:#5ad17a; }
+</style>
+</head>
+<body>
+<h1>잠시 정차합니다 · 실시간 데모</h1>
+<div class="wrap">
+  <canvas id="map" width="800" height="600"></canvas>
+  <div class="side">
+    <div class="card">
+      <h2>접속</h2>
+      <div class="row"><span class="dot" id="connDot"></span><span id="connText">연결 중…</span></div>
+      <div class="row" style="margin-top:8px">
+        방 <select id="roomSel">
+          <option value="room-1">room-1 · 지하철</option>
+          <option value="room-2">room-2 · 병원</option>
+          <option value="room-3">room-3 · 버스</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:8px"><span class="big" id="count">0</span><span class="muted">명 접속 중</span></div>
+      <div class="muted" id="selfId"></div>
+    </div>
+    <div class="card">
+      <h2>조합형 방송</h2>
+      <div class="row">
+        <select id="situationSel"></select>
+        <select id="stateSel"></select>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="sendBroadcast">방송하기</button>
+        <span class="muted" id="cooldown"></span>
+      </div>
+      <div id="error"></div>
+    </div>
+    <div class="card" id="onair">
+      <h2>지금 방송</h2>
+      <div class="msg muted" id="onairMsg">아직 방송이 없어요</div>
+      <div class="row">
+        <button data-reaction="NOD" disabled>끄덕 (NOD)</button>
+        <button data-reaction="AWW" disabled>아이고 (AWW)</button>
+        <span class="muted" id="reactionCount"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>이벤트 로그</h2>
+      <ul id="log"></ul>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+<script>
+(() => {
+  const MAP_W = 800, MAP_H = 600, SPEED = 180;   // px/s
+  const SEND_INTERVAL = 100;                     // 위치 전송 throttle: 초당 10회
+  const SITUATION = {
+    'room-1': { SUBWAY_DELAY: '열차가 지연되고 있어요', SUBWAY_CROWDED: '승강장이 붐벼요', SUBWAY_TRANSFER: '환승 기다리는 중' },
+    'room-2': { HOSPITAL_WAITING: '진료 순서를 기다려요', HOSPITAL_RESULT: '검사 결과 기다리는 중', HOSPITAL_PHARMACY: '약 타러 가는 중' },
+    'room-3': { BUS_LATE: '버스가 늦게 와요', BUS_RAIN: '비가 와요', BUS_LAST: '막차를 기다려요' },
+  };
+  const STATE = { TIRED: '피곤해요', BORED: '심심해요', HAPPY: '기분 좋아요', HUNGRY: '배고파요' };
+
+  const params = new URLSearchParams(location.search);
+  const roomId = SITUATION[params.get('room')] ? params.get('room') : 'room-1';
+  const $ = (id) => document.getElementById(id);
+  $('roomSel').value = roomId;
+  $('roomSel').onchange = (e) => { location.search = '?room=' + e.target.value; };
+  const fill = (sel, map) => { sel.innerHTML = Object.entries(map).map(([k, v]) => `<option value="${k}">${v}</option>`).join(''); };
+  fill($('situationSel'), SITUATION[roomId]);
+  fill($('stateSel'), STATE);
+
+  // ---- 상태 ----
+  let selfId = null;
+  const me = { x: 0, y: 0, tx: 0, ty: 0, seq: 0, lastSent: 0, sentX: NaN, sentY: NaN };
+  const others = new Map();          // id -> { x, y, tx, ty }
+  const bubbles = [];                // { id, text, until }
+  let currentBroadcast = null, reactionTally = { NOD: 0, AWW: 0 }, cooldownUntil = 0;
+
+  const log = (text) => {
+    const li = document.createElement('li');
+    li.textContent = new Date().toLocaleTimeString() + ' ' + text;
+    $('log').prepend(li);
+    while ($('log').children.length > 50) $('log').lastChild.remove();
+  };
+  const short = (id) => id ? id.slice(0, 4) : '?';
+  const upsert = (p) => {
+    if (p.id === selfId) return;     // 내 위치는 로컬이 기준
+    const o = others.get(p.id);
+    if (o) { o.tx = p.x; o.ty = p.y; } else others.set(p.id, { x: p.x, y: p.y, tx: p.x, ty: p.y });
+  };
+
+  // ---- STOMP ----
+  const client = new StompJs.Client({
+    brokerURL: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws',
+    reconnectDelay: 2000,
+  });
+  const send = (action, body) => client.connected && client.publish({ destination: `/app/rooms/${roomId}/${action}`, body: JSON.stringify(body || {}) });
+
+  client.onConnect = () => {
+    $('connDot').classList.add('on'); $('connText').textContent = '연결됨 · ' + roomId;
+    others.clear();
+    client.subscribe('/user/queue/events', (m) => onMessage(JSON.parse(m.body)));
+    client.subscribe(`/topic/rooms/${roomId}`, (m) => onMessage(JSON.parse(m.body)));
+    send('join');
+  };
+  client.onWebSocketClose = () => { $('connDot').classList.remove('on'); $('connText').textContent = '연결 끊김 · 재연결 중…'; };
+  client.activate();
+
+  // 페이지를 떠날 때(방 선택으로 이동 포함) 연결을 직접 끊는다.
+  // Chrome 은 이전 페이지를 bfcache 에 넣으면서 WebSocket 을 열어 둘 수 있어서, 이렇게 하지 않으면
+  // 서버에는 이전 세션이 살아 있는 것으로 보이고 그 캐릭터가 방에 남는다.
+  window.addEventListener('pagehide', () => {
+    client.deactivate({ force: true });
+  });
+  // 뒤로 가기로 bfcache 에서 복원되면 새 세션으로 다시 입장한다.
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) { others.clear(); selfId = null; client.activate(); }
+  });
+
+  function onMessage(msg) {
+    switch (msg.type) {
+      case 'SNAPSHOT':
+        if (msg.full) {
+          selfId = msg.selfId;
+          $('selfId').textContent = '내 ID: ' + short(selfId);
+          const mine = msg.players.find((p) => p.id === selfId);
+          if (mine) Object.assign(me, { x: mine.x, y: mine.y, tx: mine.x, ty: mine.y });
+          $('count').textContent = msg.players.length;
+        }
+        msg.players.forEach(upsert);
+        break;
+      case 'JOIN':
+        upsert(msg.player); $('count').textContent = msg.count;
+        if (msg.player.id !== selfId) log(`${short(msg.player.id)} 입장`);
+        break;
+      case 'LEAVE':
+        others.delete(msg.playerId); $('count').textContent = msg.count;
+        log(`${short(msg.playerId)} 퇴장`);
+        break;
+      case 'BROADCAST':
+        currentBroadcast = msg; reactionTally = { NOD: 0, AWW: 0 };
+        $('onairMsg').classList.remove('muted');
+        $('onairMsg').textContent = `📢 ${short(msg.senderId)}: "${msg.situationLabel}" · ${msg.stateLabel}`;
+        document.querySelectorAll('[data-reaction]').forEach((b) => b.disabled = false);
+        $('reactionCount').textContent = '';
+        bubbles.push({ id: msg.senderId, text: '📢', until: performance.now() + 3000 });
+        log(`방송: ${msg.situationLabel} / ${msg.stateLabel}`);
+        break;
+      case 'REACTION':
+        if (currentBroadcast && msg.broadcastId === currentBroadcast.broadcastId) {
+          reactionTally[msg.reaction]++;
+          $('reactionCount').textContent = `끄덕 ${reactionTally.NOD} · 아이고 ${reactionTally.AWW}`;
+        }
+        bubbles.push({ id: msg.playerId, text: msg.reaction === 'NOD' ? '👍' : '🥺', until: performance.now() + 1000 });
+        break;
+      case 'ERROR':
+        $('error').textContent = `${msg.code}: ${msg.message}`;
+        if (msg.retryAfterMs) cooldownUntil = Date.now() + msg.retryAfterMs;
+        setTimeout(() => { $('error').textContent = ''; }, 4000);
+        break;
+    }
+  }
+
+  // ---- 입력 ----
+  $('map').addEventListener('click', (e) => {
+    const r = e.target.getBoundingClientRect();
+    me.tx = Math.max(0, Math.min(MAP_W, (e.clientX - r.left) * (MAP_W / r.width)));
+    me.ty = Math.max(0, Math.min(MAP_H, (e.clientY - r.top) * (MAP_H / r.height)));
+  });
+  $('sendBroadcast').onclick = () => {
+    send('broadcast', { situationChipId: $('situationSel').value, stateChipId: $('stateSel').value });
+  };
+  document.querySelectorAll('[data-reaction]').forEach((b) => b.onclick = () => {
+    if (currentBroadcast) send('reaction', { broadcastId: currentBroadcast.broadcastId, type: b.dataset.reaction });
+  });
+
+  // ---- 렌더 루프 ----
+  const ctx = $('map').getContext('2d');
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+
+    // 내 캐릭터: 목표 지점으로 일정 속도 이동
+    const dx = me.tx - me.x, dy = me.ty - me.y, dist = Math.hypot(dx, dy), step = SPEED * dt;
+    if (dist <= step) { me.x = me.tx; me.y = me.ty; } else { me.x += dx / dist * step; me.y += dy / dist * step; }
+    // 위치 전송: 바뀌었을 때만, 최대 초당 10회
+    if (selfId && now - me.lastSent >= SEND_INTERVAL && (me.x !== me.sentX || me.y !== me.sentY)) {
+      me.lastSent = now; me.sentX = me.x; me.sentY = me.y;
+      send('move', { x: Math.round(me.x), y: Math.round(me.y), seq: ++me.seq });
+    }
+    // 다른 플레이어: 지수 lerp 보간 (프레임레이트와 무관)
+    const k = 1 - Math.exp(-dt * 12);
+    others.forEach((o) => { o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; });
+
+    // 그리기
+    ctx.fillStyle = '#2a3b2f'; ctx.fillRect(0, 0, MAP_W, MAP_H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    for (let x = 0; x <= MAP_W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, MAP_H); ctx.stroke(); }
+    for (let y = 0; y <= MAP_H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(MAP_W, y); ctx.stroke(); }
+
+    ctx.font = '11px system-ui'; ctx.textAlign = 'center';
+    others.forEach((o, id) => {
+      ctx.fillStyle = '#e9edf5'; ctx.beginPath(); ctx.arc(o.x, o.y, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(230,232,238,0.6)'; ctx.fillText(short(id), o.x, o.y + 20);
+    });
+    if (selfId) {
+      ctx.strokeStyle = 'rgba(255,209,102,0.4)'; ctx.setLineDash([4, 4]);
+      if (me.x !== me.tx || me.y !== me.ty) { ctx.beginPath(); ctx.moveTo(me.x, me.y); ctx.lineTo(me.tx, me.ty); ctx.stroke(); }
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.arc(me.x, me.y, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffd166'; ctx.fillText('나', me.x, me.y + 22);
+    }
+    ctx.font = '18px system-ui';
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+      const b = bubbles[i];
+      if (now > b.until) { bubbles.splice(i, 1); continue; }
+      const p = b.id === selfId ? me : others.get(b.id);
+      if (p) ctx.fillText(b.text, p.x, p.y - 14);
+    }
+
+    const left = Math.ceil((cooldownUntil - Date.now()) / 1000);
+    $('cooldown').textContent = left > 0 ? `쿨다운 ${left}초` : '';
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

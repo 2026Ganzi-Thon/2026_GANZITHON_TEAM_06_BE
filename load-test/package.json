@@ -1,0 +1,13 @@
+{
+  "name": "waiting-room-load-test",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "load": "node load-test.js",
+    "scenarios": "node run-scenarios.js"
+  },
+  "dependencies": {
+    "@stomp/stompjs": "7.0.0",
+    "ws": "8.18.0"
+  }
+}
