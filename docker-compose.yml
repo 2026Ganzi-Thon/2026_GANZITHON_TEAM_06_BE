@@ -1,0 +1,23 @@
+# 로컬 개발용 Postgres
+# 실행: docker compose up -d   /   종료: docker compose down   /   데이터까지 삭제: docker compose down -v
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: station-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-station}
+      POSTGRES_USER: ${DB_USERNAME:-station}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-station}
+      TZ: UTC
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - station-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME:-station} -d ${DB_NAME:-station}" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  station-pgdata:

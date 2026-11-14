@@ -1,0 +1,58 @@
+# 공통 설정. 배포 환경마다 다른 값과 비밀값은 환경변수로 받습니다.
+# 로컬에서는 아래 local 구역의 기본값이 쓰이고, 프로젝트 루트의 .env가 있으면 그 값이 우선합니다.
+spring:
+  application:
+    name: station
+  profiles:
+    default: local
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate          # 스키마는 Flyway(db/migration)가 만들고, JPA는 검증만 합니다
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+station:
+  train:
+    # 열차 간격(1시간)을 몇 초로 줄일지. 기본 15초 → 15초마다 열차 1대 = 털실 1올
+    interval-seconds: ${TRAIN_INTERVAL_SECONDS:15}
+
+---
+# 로컬 개발: docker-compose.yml의 Postgres 기본값과 맞춰 두었습니다.
+spring:
+  config:
+    activate:
+      on-profile: local
+    import: optional:file:.env[.properties]
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:${DB_PORT:5432}/${DB_NAME:station}}
+    username: ${DB_USERNAME:station}
+    password: ${DB_PASSWORD:station}
+
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+
+logging:
+  level:
+    org.hibernate.SQL: debug
