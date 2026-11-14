@@ -104,6 +104,9 @@
 | `COMMON_NOT_FOUND` | 404 | 없는 경로 |
 | `COMMON_METHOD_NOT_ALLOWED` | 405 | 지원하지 않는 HTTP 메서드 |
 | `COMMON_INTERNAL_ERROR` | 500 | 알 수 없는 서버 오류 |
+| `AUTH_LOGIN_REQUIRED` | 401 | 토큰이 없음, 게스트가 로그인 전용 API 호출 |
+| `AUTH_INVALID_TOKEN` | 401 | 계정 토큰이 만료·위조됨 (프론트는 토큰을 지우고 다시 요청) |
+| `AUTH_FORBIDDEN` | 403 | 권한 없음 |
 | `ROOM_NOT_FOUND` | 404 | 없는 대기실 |
 | `TICKET_NOT_FOUND` | 404 | 없는 기다림 |
 | `TICKET_ALREADY_ENDED` | 409 | 이미 종료된 기다림 |
@@ -175,3 +178,23 @@ Swagger는 WebSocket을 문서화하지 못하므로, 메시지 명세는 README
 - 이미 프론트가 쓰고 있는 API의 **필드 이름·타입을 바꾸거나 지우는 것**은 먼저 프론트와 합의합니다
 - 필드를 **추가**하는 것은 바로 해도 됩니다
 - 변경한 PR 설명에 "API 변경" 이라고 적고, 프론트 채널에 링크를 공유합니다
+
+## 9. 인증
+
+| 구분 | 헤더 | 언제 받나 |
+|---|---|---|
+| 계정 토큰 | `Authorization: Bearer {accessToken}` | 가입·로그인 응답. **7일** 뒤 만료, 리프레시 토큰 없음 |
+| 게스트 토큰 | `X-Guest-Token: {guestToken}` | 비로그인 상태의 승차권 발급 응답. JWT가 아닌 랜덤 문자열 |
+
+- 로그아웃은 프론트가 계정 토큰을 지우는 것으로 처리합니다 (서버 호출 없음).
+- 로그인 사용자가 임시 조각을 옮길 때처럼 **두 헤더를 같이** 보낼 수 있습니다.
+- 경로별 규칙
+
+| 경로 | 필요한 것 |
+|---|---|
+| `GET /api/v1/rooms/**`, `GET /api/v1/tickets/stats`, `POST /api/v1/users`, `POST /api/v1/users/login`, `POST /api/v1/tickets`, Swagger, `/actuator/health`, `/ws/**` | 없음 |
+| `/api/v1/users/me/**` | 계정 토큰 |
+| 그 밖의 `/api/**` | 계정 토큰 또는 게스트 토큰 |
+
+- 토큰이 필요 없는 경로라도 **만료·위조된 계정 토큰을 보내면 401 `AUTH_INVALID_TOKEN`** 입니다.
+- 서버 코드에서는 컨트롤러 파라미터 `@CurrentUser Requester requester`로 `userId`(없으면 null)와 `guestToken`(없으면 null)을 꺼냅니다. "이 승차권이 내 것인지"는 각 Service가 확인합니다.
