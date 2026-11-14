@@ -39,6 +39,10 @@ management:
     health:
       show-details: never
 
+station:
+  jwt:
+    expiration: 7d                # 계정 토큰 유효 기간. 리프레시 토큰 없음
+
 ---
 # 로컬 개발: docker-compose.yml의 Postgres 기본값과 맞춰 두었습니다.
 spring:

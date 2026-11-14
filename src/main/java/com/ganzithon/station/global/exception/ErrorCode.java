@@ -18,6 +18,11 @@ public enum ErrorCode {
     COMMON_METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 HTTP 메서드입니다."),
     COMMON_INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "알 수 없는 서버 오류가 발생했습니다."),
 
+    // 인증
+    AUTH_LOGIN_REQUIRED(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다."),
+    AUTH_INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "로그인 정보가 만료되었거나 올바르지 않습니다. 다시 로그인해 주세요."),
+    AUTH_FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
+
     // room
     ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "대기실을 찾을 수 없습니다."),
 

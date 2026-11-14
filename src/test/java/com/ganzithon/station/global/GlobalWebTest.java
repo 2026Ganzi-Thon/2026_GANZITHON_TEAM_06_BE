@@ -7,11 +7,11 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,19 +23,17 @@ import java.time.Instant;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * global 공통 코드 확인: 응답 형식, 예외 처리, 시각 형식, CORS.
+ * global 공통 코드 확인: 응답 형식, 예외 처리, 시각 형식.
  */
 @WebMvcTest(controllers = GlobalWebTest.TestController.class)
+@AutoConfigureMockMvc(addFilters = false) // 인증·CORS는 SecurityIntegrationTest에서 확인
 @Import(GlobalWebTest.TestController.class)
-@TestPropertySource(properties = "station.cors.allowed-origin-patterns=https://station.example.com, http://localhost:*")
 class GlobalWebTest {
 
     @Autowired
@@ -94,30 +92,6 @@ class GlobalWebTest {
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.error.code").value("COMMON_INTERNAL_ERROR"))
                 .andExpect(jsonPath("$.error.message").value("알 수 없는 서버 오류가 발생했습니다."));
-    }
-
-    @Test
-    void CORS_localhost_패턴은_어느_포트든_허용하고_credentials는_없음() throws Exception {
-        mockMvc.perform(options("/api/v1/test/time")
-                        .header("Origin", "http://localhost:5173")
-                        .header("Access-Control-Request-Method", "GET")
-                        .header("Access-Control-Request-Headers", "Authorization"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
-                .andExpect(header().doesNotExist("Access-Control-Allow-Credentials"));
-    }
-
-    @Test
-    void CORS_쉼표로_넣은_정확한_주소도_허용() throws Exception {
-        mockMvc.perform(get("/api/v1/test/time").header("Origin", "https://station.example.com"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Access-Control-Allow-Origin", "https://station.example.com"));
-    }
-
-    @Test
-    void CORS_목록에_없는_Origin은_거부() throws Exception {
-        mockMvc.perform(get("/api/v1/test/time").header("Origin", "https://evil.example.com"))
-                .andExpect(status().isForbidden());
     }
 
     @RestController
