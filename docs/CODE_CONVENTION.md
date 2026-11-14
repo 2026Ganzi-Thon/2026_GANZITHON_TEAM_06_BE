@@ -146,12 +146,23 @@ Controller  →  Service  →  Repository  →  DB
 
 ## 4. 예시 코드 (이 모양 그대로 만들기)
 
-`room` 도메인에서 "방 하나 조회"를 만든다고 하면 파일 5개가 생깁니다.
+`room` 도메인의 **대기실 목록 조회**(`GET /api/v1/rooms`)와 **단건 조회**(`GET /api/v1/rooms/{roomCode}`)가 실제로 들어 있는 기준 코드입니다.
+아래는 요약이고, 전체는 `src/main/java/com/ganzithon/station/room/`의 파일을 열어 보세요. 테스트는 `src/test/.../room/controller/RoomControllerTest.java`입니다.
+
+| 파일 | 위치 |
+|---|---|
+| Entity | `room/entity/Room.java` (3번에서 만듦) |
+| Repository | `room/repository/RoomRepository.java` |
+| 응답 DTO | `room/dto/response/RoomResponse.java`, `RoomListResponse.java` |
+| Service | `room/service/RoomService.java` |
+| Controller | `room/controller/RoomController.java` |
+| 테스트 | `room/controller/RoomControllerTest.java` |
 
 ### Entity — `room/entity/Room.java`
 
 ```java
 @Entity
+@Table(name = "rooms")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Room extends BaseTimeEntity {
@@ -160,26 +171,25 @@ public class Room extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private RoomType type;
+    @Column(nullable = false, unique = true, length = 30)
+    private String code;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 30)
     private String name;
 
+    @Column(nullable = false, length = 100)
     private String slogan;
 
+    // ... 회고 질문, NPC 문구, sortOrder
+
     @Builder
-    private Room(RoomType type, String name, String slogan) {
-        this.type = type;
+    private Room(String code, String name, String slogan, ...) {
+        this.code = code;
         this.name = name;
         this.slogan = slogan;
     }
 
-    // 상태 변경은 의미 있는 메서드로
-    public void changeSlogan(String slogan) {
-        this.slogan = slogan;
-    }
+    // 상태를 바꿔야 하면 setter 대신 의미 있는 메서드로 (room은 시드라 없음)
 }
 ```
 
@@ -187,24 +197,39 @@ public class Room extends BaseTimeEntity {
 
 ```java
 public interface RoomRepository extends JpaRepository<Room, Long> {
+
+    Optional<Room> findByCode(String code);
+
+    List<Room> findAllByOrderBySortOrderAsc();
 }
 ```
 
-### 응답 DTO — `room/dto/response/RoomResponse.java`
+### 응답 DTO — `room/dto/response/RoomResponse.java`, `RoomListResponse.java`
 
 ```java
 public record RoomResponse(
-        @Schema(description = "방 ID", example = "1")
-        Long roomId,
+        @Schema(description = "대기실 코드. 단건 조회 경로에 씁니다", example = "RESULT")
+        String roomCode,
 
-        @Schema(description = "방 이름", example = "결과발표 대기실")
+        @Schema(description = "대기실 이름", example = "결과발표")
         String name,
 
-        @Schema(description = "상단 슬로건", example = "오늘도 잘 기다리고 있어요")
+        @Schema(description = "대기실 상단 슬로건", example = "결과를 기다리는 자리, 잠시 마음을 가만히 내려놓아도 돼요.")
         String slogan
+        // ...
 ) {
     public static RoomResponse from(Room room) {
-        return new RoomResponse(room.getId(), room.getName(), room.getSlogan());
+        return new RoomResponse(room.getCode(), room.getName(), room.getSlogan() /* ... */);
+    }
+}
+
+// 목록은 data를 배열로 만들지 않고 필드로 감쌉니다: "data": { "rooms": [ ... ] }
+public record RoomListResponse(
+        @Schema(description = "대기실 목록 (화면 표시 순서)")
+        List<RoomResponse> rooms
+) {
+    public static RoomListResponse from(List<Room> rooms) {
+        return new RoomListResponse(rooms.stream().map(RoomResponse::from).toList());
     }
 }
 ```
@@ -219,14 +244,23 @@ public class RoomService {
 
     private final RoomRepository roomRepository;
 
-    public RoomResponse getRoom(Long roomId) {
-        return RoomResponse.from(getRoomEntity(roomId));
+    // API용 (Controller가 호출)
+    public RoomListResponse getRoomList() {
+        return RoomListResponse.from(getRoomEntityList());
     }
 
-    // 다른 도메인 Service에서 Entity가 필요할 때 사용
-    public Room getRoomEntity(Long roomId) {
-        return roomRepository.findById(roomId)
+    public RoomResponse getRoom(String roomCode) {
+        return RoomResponse.from(getRoomEntity(roomCode));
+    }
+
+    // 다른 도메인 Service용 (Controller에서 쓰지 않음)
+    public Room getRoomEntity(String roomCode) {
+        return roomRepository.findByCode(roomCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ROOM_NOT_FOUND));
+    }
+
+    public List<Room> getRoomEntityList() {
+        return roomRepository.findAllByOrderBySortOrderAsc();
     }
 }
 ```
@@ -234,7 +268,7 @@ public class RoomService {
 ### Controller — `room/controller/RoomController.java`
 
 ```java
-@Tag(name = "Room", description = "대기실 API")
+@Tag(name = "Room", description = "대기실 API (인증 없이 호출 가능)")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/rooms")
@@ -242,10 +276,48 @@ public class RoomController {
 
     private final RoomService roomService;
 
-    @Operation(summary = "대기실 단건 조회")
-    @GetMapping("/{roomId}")
-    public ResponseEntity<ApiResponse<RoomResponse>> getRoom(@PathVariable Long roomId) {
-        return ResponseEntity.ok(ApiResponse.success(roomService.getRoom(roomId)));
+    @Operation(summary = "대기실 목록 조회", description = "대기실 선택 화면(ON-02)에 보여 줄 순서대로 내려줍니다.")
+    @GetMapping
+    public ResponseEntity<ApiResponse<RoomListResponse>> getRoomList() {
+        return ResponseEntity.ok(ApiResponse.success(roomService.getRoomList()));
+    }
+
+    @Operation(summary = "대기실 단건 조회", description = "없는 코드면 404 ROOM_NOT_FOUND")
+    @GetMapping("/{roomCode}")
+    public ResponseEntity<ApiResponse<RoomResponse>> getRoom(
+            @Parameter(description = "대기실 코드", example = "RESULT") @PathVariable String roomCode) {
+        return ResponseEntity.ok(ApiResponse.success(roomService.getRoom(roomCode)));
+    }
+}
+```
+
+### 로그인한 사람이 필요한 API라면
+
+컨트롤러 파라미터에 `@CurrentUser Requester requester`를 추가하고, Service에 넘겨서 소유자를 확인합니다 (→ [API_CONVENTION.md](./API_CONVENTION.md) 9장).
+
+```java
+@GetMapping("/me/blanket-pieces")
+public ResponseEntity<ApiResponse<BlanketPieceListResponse>> getMyBlanketPieces(@CurrentUser Requester requester) {
+    return ResponseEntity.ok(ApiResponse.success(blanketService.getMyBlanketPieceList(requester.requireUserId())));
+}
+```
+
+### 테스트 — `room/controller/RoomControllerTest.java`
+
+```java
+@Import(TestcontainersConfiguration.class)   // Docker로 Postgres를 띄워서 시드 데이터까지 들어간 DB로 테스트
+@SpringBootTest
+@AutoConfigureMockMvc
+class RoomControllerTest {
+
+    @Autowired
+    MockMvc mockMvc;
+
+    @Test
+    void 없는_대기실은_404_ROOM_NOT_FOUND() throws Exception {
+        mockMvc.perform(get("/api/v1/rooms/{roomCode}", "NOT_EXIST"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("ROOM_NOT_FOUND"));
     }
 }
 ```

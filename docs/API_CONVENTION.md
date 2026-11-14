@@ -7,7 +7,7 @@
 
 - 모든 REST API는 **`/api/v1`** 로 시작합니다
 - 자원(명사)은 **복수형**, 여러 단어는 **kebab-case**
-- path variable은 **camelCase + Id**: `{ticketId}`, `{roomId}`
+- path variable은 **camelCase + Id**: `{ticketId}`. 코드로 찾는 자원은 **camelCase + Code**: `{roomCode}` (대기실은 시드 코드 `RESULT` 등으로 찾습니다)
 - 동사를 URL에 넣지 않습니다. 대신 HTTP 메서드로 표현합니다
 
 | ✅ 좋은 예 | ❌ 나쁜 예 |
@@ -108,8 +108,14 @@
 | `AUTH_INVALID_TOKEN` | 401 | 계정 토큰이 만료·위조됨 (프론트는 토큰을 지우고 다시 요청) |
 | `AUTH_FORBIDDEN` | 403 | 권한 없음 |
 | `ROOM_NOT_FOUND` | 404 | 없는 대기실 |
+| `SITUATION_CHIP_NOT_FOUND` | 404 | 없거나 다른 방의 상황 칩 |
+| `USER_NOT_FOUND` | 404 | 없는 계정 |
 | `TICKET_NOT_FOUND` | 404 | 없는 기다림 |
+| `TICKET_FORBIDDEN` | 403 | 내 기다림이 아님 (userId·guestToken 불일치) |
 | `TICKET_ALREADY_ENDED` | 409 | 이미 종료된 기다림 |
+| `TICKET_NOT_ENDED` | 409 | 아직 끝나지 않은 기다림 (옮기기 불가) |
+| `TICKET_ALREADY_CLAIMED` | 409 | 이미 계정으로 옮긴 기다림 |
+| `BLANKET_PIECE_ALREADY_EXISTS` | 409 | 이 기다림의 담요 조각이 이미 있음 |
 | `BROADCAST_COOLDOWN` | 429 | 방송 30초 쿨다운 중 |
 
 > 위 표는 예시입니다. 새 코드가 필요하면 `global/` 담당자에게 요청하고, 추가되면 이 표도 같이 갱신합니다.
