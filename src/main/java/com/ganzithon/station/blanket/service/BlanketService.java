@@ -3,7 +3,10 @@ package com.ganzithon.station.blanket.service;
 import com.ganzithon.station.blanket.dto.request.BlanketPieceCreateRequest;
 import com.ganzithon.station.blanket.dto.response.BlanketPieceResponse;
 import com.ganzithon.station.global.exception.BusinessException;
+import com.ganzithon.station.room.entity.Pattern;
+import com.ganzithon.station.ticket.entity.Ticket;
 import com.ganzithon.station.user.service.UserService;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class BlanketService {
 
     private final UserService userService;
+    private final EntityManager entityManager;
 
     // ── 다른 도메인 Service용 (Controller에서 쓰지 않음) ──
 
@@ -28,8 +32,7 @@ public class BlanketService {
      * <p>하는 일: 받은 값을 그대로 저장만 합니다. 열차 수·기다림 이름을 다시 계산하지 않습니다 (계산은 ticket 담당).</p>
      * <ul>
      *     <li>계정: {@code userService.getUserEntity(request.userId())}</li>
-     *     <li>Ticket·Pattern 연결: ticket·room Service를 부르면 호출 방향이 거꾸로 되므로
-     *         {@code EntityManager.getReference(Ticket.class, request.ticketId())}처럼 ID로만 연결합니다</li>
+     *     <li>Ticket·Pattern: 아래 {@link #ticketReference}, {@link #patternReference}를 그대로 쓰면 됩니다</li>
      *     <li>검증: 같은 ticketId로 조각이 이미 있으면 BLANKET_PIECE_ALREADY_EXISTS (DB unique 제약도 있지만 먼저 확인)</li>
      *     <li>뒷면 기록은 저장 후 바꾸지 않습니다 (BlanketPiece에 수정 메서드 없음)</li>
      * </ul>
@@ -41,5 +44,22 @@ public class BlanketService {
     public BlanketPieceResponse createPiece(BlanketPieceCreateRequest request) {
         // TODO(상진)
         throw new UnsupportedOperationException("TODO(상진): createPiece");
+    }
+
+    /**
+     * 조각에 연결할 Ticket. DB를 조회하지 않고 ID만 가진 참조를 돌려줍니다.
+     * <p>Service가 아니라 ID로 연결만 하므로 호출 방향 위반 아님 (blanket → ticket 호출이 아닙니다).
+     * 존재 여부는 호출한 TicketService가 이미 확인했고, 혹시 없으면 저장할 때 FK 제약으로 실패합니다.</p>
+     */
+    private Ticket ticketReference(Long ticketId) {
+        return entityManager.getReference(Ticket.class, ticketId);
+    }
+
+    /**
+     * 조각 앞면에 연결할 Pattern. DB를 조회하지 않고 ID만 가진 참조를 돌려줍니다.
+     * <p>Service가 아니라 ID로 연결만 하므로 호출 방향 위반 아님 (blanket → room 호출이 아닙니다).</p>
+     */
+    private Pattern patternReference(Long patternId) {
+        return entityManager.getReference(Pattern.class, patternId);
     }
 }

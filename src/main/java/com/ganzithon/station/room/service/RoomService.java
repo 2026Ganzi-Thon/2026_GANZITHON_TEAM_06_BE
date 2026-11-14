@@ -80,7 +80,7 @@ public class RoomService {
     /**
      * 랜덤 도안 하나 (YT-01).
      * <p>구현: 하빈 / 호출: ticket(승차권 발급 때 도안 배정)</p>
-     * <p>주의: 도안은 시드라 요청마다 DB를 읽지 말고, 서버 시작 시 메모리에 올려 두고 고릅니다 (DOMAIN.md 7장).</p>
+     * <p>지금은 DB에서 조회합니다. 요청이 많아지면 나중에 이 Service 안에서 캐시합니다 (DOMAIN.md 7장).</p>
      */
     public Pattern getRandomPattern() {
         // TODO(하빈)
