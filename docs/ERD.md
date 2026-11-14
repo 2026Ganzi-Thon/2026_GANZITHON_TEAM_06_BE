@@ -64,6 +64,7 @@ erDiagram
         varchar end_reason
         timestamptz started_at
         timestamptz ended_at
+        int yarn_spent
         timestamptz knitting_delivered_at
         timestamptz claimed_at
     }
@@ -81,7 +82,7 @@ erDiagram
 
 ## 2. 테이블 상세
 
-모든 테이블에 `created_at`, `updated_at`(`BaseTimeEntity`)이 있습니다. 아래 표에서는 생략합니다.
+모든 테이블에 `created_at`, `updated_at`(`BaseTimeEntity`, `timestamptz not null`, **기본값 `now()`**)이 있습니다. JPA로 저장할 때는 `BaseTimeEntity`가 채우고, 기본값 `now()`는 시드 SQL처럼 JPA를 거치지 않는 insert용입니다. 아래 표에서는 생략합니다.
 
 ### `users` — 계정 (담당: user)
 
@@ -157,7 +158,8 @@ erDiagram
 | guest_token | varchar(64) | null, index | 비로그인 발급 시 서버가 만든 랜덤 값 |
 | mood_chip | varchar(30) | null | `MoodChip` enum. 건너뛰면 null, 방송 때 바뀔 수 있음 |
 | last_situation_chip_id | bigint | null, FK → situation_chips | 마지막 방송의 상황 칩 (조각의 "기다림 이름"용) |
-| pattern_id | bigint | not null, FK → patterns | 발급 때 랜덤 배정 |
+| pattern_id | bigint | not null, FK → patterns | 발급 때 랜덤 배정. "도안 바꾸기" 때 다른 도안으로 바뀜 |
+| yarn_spent | int | not null, default 0, check ≥ 0 | 쓴 털실 수 ("도안 바꾸기" 1회 = 1올) |
 | status | varchar(10) | not null | `WAITING` / `ENDED` |
 | end_reason | varchar(20) | null | `ANSWERED` / `UNEXPECTED` / `LET_GO`. 종료 시 채움 |
 | started_at | timestamptz | not null | 열차·털실·머문 시간 계산의 기준 |
@@ -167,7 +169,8 @@ erDiagram
 
 - **check**: `user_id`와 `guest_token` 중 하나는 반드시 있어야 합니다.
 - **check**: `status = 'ENDED'`이면 `end_reason`, `ended_at`이 있어야 합니다.
-- 지나간 열차 수·털실 수는 저장하지 않고 `started_at`으로 계산합니다.
+- 지나간 열차 수는 저장하지 않고 `started_at`으로 계산합니다.
+- **남은 털실 = 지나간 열차 수 - `yarn_spent`**. 받은 털실 수는 계산하고, 쓴 털실 수만 저장합니다.
 - 전광판 통계는 `status = 'ENDED'`를 `end_reason`별로 셉니다 (서버 시작 시 1번, 이후 메모리 카운터).
 
 ### `blanket_pieces` — 계정 담요 조각 (담당: blanket)
