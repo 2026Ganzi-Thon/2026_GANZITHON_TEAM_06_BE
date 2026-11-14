@@ -1,0 +1,60 @@
+# 운영 서버(EC2)용. 로컬 개발용 docker-compose.yml(리포 루트)과 다른 파일입니다.
+# CodeDeploy가 이 파일을 /home/ubuntu/station/current 에 복사합니다.
+# 비밀값은 서버의 /home/ubuntu/station/.env 에만 있습니다.
+name: station   # 폴더 이름이 바뀌어도 DB 볼륨이 유지되도록 프로젝트 이름 고정
+
+services:
+  app:
+    image: ${IMAGE_URI}
+    env_file: /home/ubuntu/station/.env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: Asia/Seoul
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    expose:
+      - "8080"
+    mem_limit: 1600m
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    mem_limit: 512m
+    # 외부 포트를 열지 않습니다. app 컨테이너만 접근합니다.
+
+  caddy:
+    image: caddy:2
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

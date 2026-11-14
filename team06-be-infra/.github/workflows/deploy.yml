@@ -1,0 +1,70 @@
+name: Deploy
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # GitHub OIDC로 AWS 역할을 맡기 위해 필요 (액세스 키 없음)
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: station-be
+  CODEDEPLOY_APP: station
+  CODEDEPLOY_GROUP: station-dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: AWS 로그인 (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: ECR 로그인
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 이미지 빌드 & ECR push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 배포 번들(zip) 만들기
+        run: |
+          mkdir -p bundle
+          cp -r deploy/appspec.yml deploy/docker-compose.yml deploy/Caddyfile deploy/scripts bundle/
+          echo "IMAGE_URI=${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}" > bundle/image.env
+          cd bundle && zip -qr ../bundle.zip .
+
+      - name: S3 업로드
+        run: aws s3 cp bundle.zip "s3://${{ secrets.DEPLOY_BUCKET }}/station/${{ github.sha }}.zip"
+
+      - name: CodeDeploy 배포 & 완료 대기
+        run: |
+          DEPLOYMENT_ID=$(aws deploy create-deployment \
+            --application-name "$CODEDEPLOY_APP" \
+            --deployment-group-name "$CODEDEPLOY_GROUP" \
+            --s3-location bucket=${{ secrets.DEPLOY_BUCKET }},key=station/${{ github.sha }}.zip,bundleType=zip \
+            --description "${{ github.sha }}" \
+            --query deploymentId --output text)
+          echo "deployment: $DEPLOYMENT_ID"
+          aws deploy wait deployment-successful --deployment-id "$DEPLOYMENT_ID"

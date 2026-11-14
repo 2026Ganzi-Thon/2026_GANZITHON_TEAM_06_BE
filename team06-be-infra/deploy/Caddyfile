@@ -1,0 +1,14 @@
+# HTTPS 인증서(Let's Encrypt)를 자동으로 발급·갱신합니다.
+# WebSocket(/ws)도 별도 설정 없이 그대로 전달됩니다.
+{$DOMAIN} {
+	encode gzip
+
+	# actuator는 health만 외부에 공개
+	@actuator {
+		path /actuator/*
+		not path /actuator/health
+	}
+	respond @actuator 404
+
+	reverse_proxy app:8080
+}

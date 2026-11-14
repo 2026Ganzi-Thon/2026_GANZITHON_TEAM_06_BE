@@ -1,0 +1,13 @@
+.git
+.github
+.gradle
+.idea
+build
+out
+docs
+deploy
+load-test
+**/node_modules
+*.md
+.env
+.env.*
