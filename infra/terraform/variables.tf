@@ -1,7 +1,7 @@
 variable "region" {
-  description = "AWS 리전. deploy.yml, setup-ec2.sh, start.sh도 ap-northeast-2를 쓰므로 바꾸면 같이 바꿔야 합니다."
+  description = "AWS 리전. deploy.yml의 AWS_REGION과 같아야 합니다 (서버 스크립트는 리전을 IMDS와 이미지 주소에서 읽음)."
   type        = string
-  default     = "ap-northeast-2"
+  default     = "ap-southeast-2"
 }
 
 variable "project" {

@@ -28,8 +28,14 @@ if [ -z "$IMAGE_URI" ]; then
 fi
 
 # ECR 로그인 (EC2 인스턴스 역할 권한 사용, 키 없음)
+# 리전은 하드코딩하지 않고 레지스트리 주소(<계정>.dkr.ecr.<리전>.amazonaws.com)에서 꺼냅니다.
 REGISTRY="${IMAGE_URI%%/*}"
-aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin "$REGISTRY"
+REGION="$(echo "$REGISTRY" | sed -nE 's#^[0-9]+\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com$#\1#p')"
+if [ -z "$REGION" ]; then
+  echo "IMAGE_URI에서 리전을 읽지 못했습니다: $IMAGE_URI" >&2
+  exit 1
+fi
+aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REGISTRY"
 
 docker compose pull app
 docker compose up -d

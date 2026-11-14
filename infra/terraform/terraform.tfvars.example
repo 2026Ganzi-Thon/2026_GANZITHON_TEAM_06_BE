@@ -15,7 +15,7 @@ instance_type = "t8i.small"
 create_github_oidc_provider = true
 
 # 아래는 기본값 그대로 두면 됩니다.
-# region             = "ap-northeast-2"
+# region             = "ap-southeast-2"
 # project            = "station"
 # github_org         = "2026Ganzi-Thon"
 # github_repo        = "2026_GANZITHON_TEAM_06_BE"

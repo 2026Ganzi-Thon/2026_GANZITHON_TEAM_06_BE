@@ -3,7 +3,12 @@
 # 진행 확인: sudo cloud-init status --wait   /   로그: /var/log/cloud-init-output.log
 # 직접 실행할 때: sudo bash setup-ec2.sh
 set -euo pipefail
-REGION=ap-northeast-2
+
+# 리전은 하드코딩하지 않고 인스턴스 메타데이터(IMDSv2)에서 읽습니다.
+IMDS_TOKEN="$(curl -fsS -X PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 300')"
+REGION="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/meta-data/placement/region)"
+echo "region: ${REGION}"
+
 export HOME="${HOME:-/root}"            # cloud-init에서는 HOME이 비어 있을 수 있음 (CodeDeploy 설치 스크립트가 사용)
 export DEBIAN_FRONTEND=noninteractive  # apt가 질문 창을 띄우지 않게
 

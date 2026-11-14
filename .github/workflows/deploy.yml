@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  AWS_REGION: ap-northeast-2
+  AWS_REGION: ap-southeast-2   # 시드니. Terraform region과 같아야 합니다
   ECR_REPOSITORY: station-be
   CODEDEPLOY_APP: station
   CODEDEPLOY_GROUP: station-dev
