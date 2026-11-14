@@ -137,6 +137,7 @@ git push
 - `dev` → `main`은 배포 시점에만 **백엔드 리드(환희)** 가 PR로 올리고 머지합니다.
 - `main`, `dev`에는 브랜치 보호 규칙이 걸려 있습니다: **PR 없이 push 불가, 승인 1명 필수, force push 불가**. 규칙 때문에 push가 막히면 정상이니 PR로 올려 주세요.
 - 빌드가 깨지는 PR은 머지하지 않습니다. 올리기 전에 로컬에서 `./gradlew build`가 통과하는지 확인하세요.
+- **빌드·테스트 전에 Docker Desktop을 켜 둘 것.** 테스트가 Docker로 Postgres 컨테이너를 띄워서 돌기 때문에, Docker가 꺼져 있으면 `Could not find a valid Docker environment`로 실패합니다.
 
 ## 6. 절대 하지 말 것
 

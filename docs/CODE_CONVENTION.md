@@ -3,6 +3,11 @@
 > 새 기능을 만들 때는 **4장의 예시 코드와 똑같은 모양**으로 만들면 됩니다.
 > 규칙이 애매하면 혼자 정하지 말고 물어봐 주세요.
 
+> **Spring Boot 4 / Jackson 3 사용 (패키지 `tools.jackson`).** 인터넷의 Boot 3 기준 예제를 그대로 쓰면 안 되는 경우가 있습니다.
+> 예: `com.fasterxml.jackson.databind.ObjectMapper` → `tools.jackson.databind.json.JsonMapper`, `@JsonComponent` → `@JacksonComponent`,
+> `spring-boot-starter-web` → `spring-boot-starter-webmvc`, 테스트 어노테이션 패키지 변경(`org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`).
+> 단, `@JsonInclude` 같은 어노테이션은 그대로 `com.fasterxml.jackson.annotation` 패키지입니다. 컴파일이 안 되면 먼저 물어봐 주세요.
+
 ## 1. 패키지 구조
 
 도메인별로 폴더를 나누고, 그 안을 레이어로 나눕니다.
@@ -255,3 +260,16 @@ public class RoomController {
 - 비즈니스 로직은 REST와 똑같이 Service에 둡니다. 승차권 확인처럼 다른 도메인 데이터가 필요하면 그 도메인의 Service를 호출합니다
 - 주기 작업(`@Scheduled`)을 추가하려면 먼저 공유해 주세요. 스케줄러 스레드 수가 정해져 있습니다
 - **플레이어 이동은 MVP 범위 밖입니다.** 위치 필드, `move` 메시지를 미리 만들지 않습니다
+
+## 6. 스키마 변경 규칙
+
+DB 스키마는 Flyway가 `src/main/resources/db/migration`의 SQL 파일로 만듭니다. JPA는 `ddl-auto: validate`라서 **엔티티만 고치면 서버가 뜨지 않습니다.**
+
+- **스키마 변경(테이블·컬럼·제약 추가, 변경)은 환희에게 요청합니다.** 직접 SQL 파일을 만들지 않습니다.
+- **이미 올라간 파일은 고치지 않습니다.** 한 번 적용된 파일을 고치면 다른 사람 DB와 배포 서버에서 Flyway 검증이 실패합니다. 바꿀 내용은 항상 새 파일로 추가합니다.
+- 파일 이름
+  - 처음 두 개: `V1__init.sql`(스키마), `V2__seed.sql`(시드 데이터)
+  - 그 이후: **`V{yyyyMMdd}_{HHmm}__{설명}.sql`** (예: `V20261116_1430__add_xxx.sql`). 만든 시각을 쓰면 여러 명이 동시에 만들어도 번호가 겹치지 않습니다
+  - `V` 뒤 버전과 설명 사이는 **밑줄 두 개(`__`)**, 설명은 영어 소문자 + 밑줄
+- 시드 문구(대기실 슬로건, 상황 칩 문구) 수정도 새 파일에 `UPDATE`로 씁니다. 문구를 코드에 하드코딩하지 않습니다.
+- 로컬 DB가 꼬였으면 `docker compose down -v`로 지우고 다시 띄우면 처음부터 다시 만들어집니다.
