@@ -119,7 +119,7 @@ flowchart LR
 ### 4-1. 준비
 
 1. AWS 계정 생성, 콘솔 오른쪽 위 리전을 **서울(ap-northeast-2)**로
-2. 내 PC에 Terraform(1.17.2 이상), AWS CLI(2.32 이상) 설치
+2. 내 PC에 Terraform(1.17.0 이상), AWS CLI(2.32 이상) 설치
 3. 로그인 (액세스 키는 만들지 않습니다)
    ```powershell
    aws login --region ap-northeast-2

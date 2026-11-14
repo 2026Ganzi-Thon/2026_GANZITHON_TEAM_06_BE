@@ -16,11 +16,11 @@
 
 **만들지 않는 것**: 도메인 DNS 레코드(외부 서비스), 서버 `.env`(DB 비밀번호, JWT 키). 비밀값이 state 파일에 남지 않게 Terraform 밖에서 다룹니다.
 
-버전: Terraform `>= 1.17.2`, AWS provider `6.73.0` (`.terraform.lock.hcl`에 고정, 커밋 대상)
+버전: Terraform `>= 1.17.0`, AWS provider `6.73.0` (`.terraform.lock.hcl`에 고정, 커밋 대상)
 
 ## 사전 준비
 
-- [Terraform](https://developer.hashicorp.com/terraform/install) 1.17.2 이상
+- [Terraform](https://developer.hashicorp.com/terraform/install) 1.17.0 이상
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) **2.32 이상** (`aws login` 지원)
 - (선택) [Session Manager 플러그인](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html): 터미널에서 `aws ssm start-session`으로 접속할 때만 필요. 콘솔로 접속하면 필요 없음
 
