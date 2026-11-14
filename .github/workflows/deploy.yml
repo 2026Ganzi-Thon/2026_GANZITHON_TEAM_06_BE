@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write   # GitHub OIDC로 AWS 역할을 맡기 위해 필요 (액세스 키 없음)
   contents: read
 
 concurrency:
@@ -22,13 +21,19 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # 키 방식은 OIDC처럼 AWS 쪽에서 브랜치를 제한할 수 없으므로, 수동 실행도 dev에서만 돌게 막습니다.
+    if: github.ref == 'refs/heads/dev'
     steps:
       - uses: actions/checkout@v7
 
-      - name: AWS 로그인 (OIDC)
+      # 조직 SCP가 GitHub OIDC 공급자를 막아서 최소 권한 IAM 사용자(station-github-deploy)의 액세스 키를 씁니다.
+      # OIDC로 되돌릴 때: Terraform auth_mode = "oidc", 아래를 role-to-assume: ${{ secrets.AWS_ROLE_ARN }}로,
+      # permissions에 id-token: write 추가 (docs/INFRA.md 6장)
+      - name: AWS 로그인 (IAM 사용자 액세스 키)
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: ECR 로그인

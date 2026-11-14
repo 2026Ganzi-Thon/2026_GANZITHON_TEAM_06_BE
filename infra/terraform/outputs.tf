@@ -3,9 +3,19 @@ output "elastic_ip" {
   value       = aws_eip.app.public_ip
 }
 
+output "github_actions_iam_user" {
+  description = "(access_key 모드) GitHub Actions용 IAM 사용자. 이 사용자로 액세스 키를 발급해 Secrets에 넣습니다"
+  value       = local.use_access_key ? aws_iam_user.github_deploy[0].name : null
+}
+
+output "create_access_key_command" {
+  description = "(access_key 모드) 액세스 키 발급 명령어. 결과의 AccessKeyId / SecretAccessKey를 GitHub Secrets에 넣고, 출력은 저장하지 않습니다"
+  value       = local.use_access_key ? "aws iam create-access-key --user-name ${aws_iam_user.github_deploy[0].name} --output json" : null
+}
+
 output "github_actions_role_arn" {
-  description = "GitHub Secret AWS_ROLE_ARN 값"
-  value       = aws_iam_role.github_deploy.arn
+  description = "(oidc 모드) GitHub Secret AWS_ROLE_ARN 값"
+  value       = local.use_oidc ? aws_iam_role.github_deploy[0].arn : null
 }
 
 output "deploy_bucket_name" {

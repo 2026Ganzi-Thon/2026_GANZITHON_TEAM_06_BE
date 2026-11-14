@@ -1,40 +1,53 @@
 ############################################
-# GitHub OIDC 공급자
+# GitHub Actions 인증 방식 (var.auth_mode)
+#   access_key (기본): IAM 사용자 station-github-deploy + 액세스 키(키는 Terraform 밖에서 발급)
+#   oidc             : GitHub OIDC 공급자 + 역할 station-github-deploy (키 없음)
+# 지금 계정은 조직 SCP가 iam:*OpenIDConnectProvider*를 막아서 access_key를 씁니다.
+# 두 방식 모두 아래 같은 최소 권한 정책(github_deploy)을 붙입니다.
 ############################################
 locals {
-  github_oidc_url = "https://token.actions.githubusercontent.com"
-  github_oidc_provider_arn = (
-    var.create_github_oidc_provider
-    ? aws_iam_openid_connect_provider.github[0].arn
-    : data.aws_iam_openid_connect_provider.github[0].arn
-  )
+  use_oidc       = var.auth_mode == "oidc"
+  use_access_key = var.auth_mode == "access_key"
 }
 
-resource "aws_iam_openid_connect_provider" "github" {
-  count = var.create_github_oidc_provider ? 1 : 0
+############################################
+# access_key 모드: IAM 사용자 (station-github-deploy)
+############################################
+resource "aws_iam_user" "github_deploy" {
+  count = local.use_access_key ? 1 : 0
 
-  url            = local.github_oidc_url
+  name          = "${var.project}-github-deploy"
+  force_destroy = true # destroy 때 사용자에 남은 액세스 키도 함께 삭제
+}
+
+resource "aws_iam_user_policy" "github_deploy" {
+  count = local.use_access_key ? 1 : 0
+
+  name   = "deploy"
+  user   = aws_iam_user.github_deploy[0].name
+  policy = data.aws_iam_policy_document.github_deploy.json
+}
+
+############################################
+# oidc 모드: GitHub OIDC 공급자 + 역할 (station-github-deploy)
+############################################
+resource "aws_iam_openid_connect_provider" "github" {
+  count = local.use_oidc ? 1 : 0
+
+  url            = "https://token.actions.githubusercontent.com"
   client_id_list = ["sts.amazonaws.com"]
 }
 
-# 계정에 이미 있으면 (create_github_oidc_provider = false) 조회해서 씁니다.
-data "aws_iam_openid_connect_provider" "github" {
-  count = var.create_github_oidc_provider ? 0 : 1
-
-  url = local.github_oidc_url
-}
-
-############################################
-# GitHub Actions 역할 (station-github-deploy)
-############################################
 data "aws_iam_policy_document" "github_trust" {
+  count = local.use_oidc ? 1 : 0
+
   statement {
     effect  = "Allow"
     actions = ["sts:AssumeRoleWithWebIdentity"]
 
     principals {
       type        = "Federated"
-      identifiers = [local.github_oidc_provider_arn]
+      identifiers = [aws_iam_openid_connect_provider.github[0].arn]
     }
 
     condition {
@@ -53,9 +66,11 @@ data "aws_iam_policy_document" "github_trust" {
 }
 
 resource "aws_iam_role" "github_deploy" {
+  count = local.use_oidc ? 1 : 0
+
   name                 = "${var.project}-github-deploy"
   description          = "GitHub Actions deploy (${var.github_org}/${var.github_repo}@${var.github_branch})"
-  assume_role_policy   = data.aws_iam_policy_document.github_trust.json
+  assume_role_policy   = data.aws_iam_policy_document.github_trust[0].json
   max_session_duration = 3600
 }
 
@@ -112,8 +127,10 @@ data "aws_iam_policy_document" "github_deploy" {
 }
 
 resource "aws_iam_role_policy" "github_deploy" {
+  count = local.use_oidc ? 1 : 0
+
   name   = "deploy"
-  role   = aws_iam_role.github_deploy.id
+  role   = aws_iam_role.github_deploy[0].id
   policy = data.aws_iam_policy_document.github_deploy.json
 }
 

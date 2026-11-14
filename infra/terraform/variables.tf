@@ -40,10 +40,15 @@ variable "deploy_bucket_name" {
   default     = null
 }
 
-variable "create_github_oidc_provider" {
-  description = "GitHub OIDC 공급자를 새로 만들지 여부. 계정에 이미 있으면 false (조회해서 사용)"
-  type        = bool
-  default     = true
+variable "auth_mode" {
+  description = "GitHub Actions의 AWS 로그인 방식. access_key: IAM 사용자(키는 apply 후 직접 발급), oidc: GitHub OIDC 역할(SCP가 OIDC 공급자를 허용할 때)"
+  type        = string
+  default     = "access_key"
+
+  validation {
+    condition     = contains(["access_key", "oidc"], var.auth_mode)
+    error_message = "auth_mode는 \"access_key\" 또는 \"oidc\"여야 합니다."
+  }
 }
 
 variable "budget_limit_usd" {

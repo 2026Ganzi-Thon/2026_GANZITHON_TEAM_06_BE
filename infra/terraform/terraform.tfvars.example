@@ -11,8 +11,10 @@ budget_limit_usd = 20
 # EC2 유형: 평소 t8i.small(2GB), 시연 전 c7i-flex.large(4GB)로 바꿔 apply
 instance_type = "t8i.small"
 
-# 계정에 GitHub OIDC 공급자(token.actions.githubusercontent.com)가 이미 있으면 false
-create_github_oidc_provider = true
+# GitHub Actions의 AWS 로그인 방식
+#   access_key: IAM 사용자 station-github-deploy (액세스 키는 apply 후 aws iam create-access-key로 직접 발급)
+#   oidc      : GitHub OIDC (조직 SCP가 iam:*OpenIDConnectProvider*를 허용할 때만. deploy.yml도 같이 되돌려야 함)
+auth_mode = "access_key"
 
 # 아래는 기본값 그대로 두면 됩니다.
 # region             = "ap-southeast-2"
