@@ -125,7 +125,7 @@ erDiagram
   UPDATE room_ticket_counters SET last_number = last_number + 1
   WHERE room_id = ? RETURNING last_number;
   ```
-- `rooms`는 바뀌지 않는 데이터라 메모리에 올려 두기 때문에, 계속 바뀌는 번호는 별도 테이블로 뺐습니다.
+- `rooms`는 바뀌지 않는 데이터라 나중에 캐시할 수 있도록 두고, 계속 바뀌는 번호는 별도 테이블로 뺐습니다.
 
 ### `situation_chips` — 상황 칩 (담당: room, 시드 데이터)
 

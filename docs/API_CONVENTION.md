@@ -20,7 +20,7 @@
 - **상태 전환**처럼 CRUD로 표현하기 어려운 동작은 마지막에 동작 이름을 붙이고 `POST`를 씁니다
   - `POST /api/v1/tickets/{ticketId}/end` (기다림 종료)
   - `POST /api/v1/tickets/{ticketId}/knitting/deliver` (털실 톡톡, 역장에게 전달)
-- 쿼리 파라미터는 camelCase: `?roomId=1&status=WAITING`
+- 쿼리 파라미터는 camelCase: `?roomCode=RESULT&status=WAITING`
 
 ## 2. HTTP 메서드와 상태 코드
 
@@ -150,10 +150,11 @@ Swagger는 WebSocket을 문서화하지 못하므로, 메시지 명세는 README
 | 구분 | 경로 | 예시 |
 |---|---|---|
 | 연결 | `/ws` | `ws://{서버}/ws` |
-| 클라이언트 → 서버 | `/app/rooms/{roomId}/{동작}` | `/app/rooms/1/broadcast` |
-| 방 전체 수신 | `/topic/rooms/{roomId}` | |
+| 클라이언트 → 서버 | `/app/rooms/{roomCode}/{동작}` | `/app/rooms/RESULT/broadcast` |
+| 방 전체 수신 | `/topic/rooms/{roomCode}` | `/topic/rooms/RESULT` |
 | 나에게만 수신 | `/user/queue/events` | 에러, 입장 직후 전체 상태 |
 
+- `{roomCode}`는 REST와 같은 대기실 코드입니다 (`RESULT`, `NO_REPLY`, `GANZITHON_FINAL`)
 - `{동작}`은 소문자 한 단어 또는 kebab-case: `join`, `broadcast`, `reaction`
 - 플레이어 이동(`move`)은 MVP 범위 밖이라 만들지 않습니다
 
