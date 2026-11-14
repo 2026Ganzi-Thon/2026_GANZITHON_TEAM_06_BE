@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write   # GitHub OIDC로 AWS 역할을 맡기 위해 필요 (액세스 키 없음)
   contents: read
 
 concurrency:
@@ -14,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  AWS_REGION: ap-northeast-2
+  AWS_REGION: ap-southeast-2   # 시드니. Terraform region과 같아야 합니다
   ECR_REPOSITORY: station-be
   CODEDEPLOY_APP: station
   CODEDEPLOY_GROUP: station-dev
@@ -22,23 +21,29 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # 키 방식은 OIDC처럼 AWS 쪽에서 브랜치를 제한할 수 없으므로, 수동 실행도 dev에서만 돌게 막습니다.
+    if: github.ref == 'refs/heads/dev'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: AWS 로그인 (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+      # 조직 SCP가 GitHub OIDC 공급자를 막아서 최소 권한 IAM 사용자(station-github-deploy)의 액세스 키를 씁니다.
+      # OIDC로 되돌릴 때: Terraform auth_mode = "oidc", 아래를 role-to-assume: ${{ secrets.AWS_ROLE_ARN }}로,
+      # permissions에 id-token: write 추가 (docs/INFRA.md 6장)
+      - name: AWS 로그인 (IAM 사용자 액세스 키)
+        uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: ECR 로그인
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: 이미지 빌드 & ECR push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
@@ -47,11 +52,14 @@ jobs:
             ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # attestation(provenance) 매니페스트를 만들지 않습니다. 켜 두면 ECR에 태그 없는 항목이 이미지마다 쌓입니다.
+          provenance: false
 
       - name: 배포 번들(zip) 만들기
         run: |
           mkdir -p bundle
           cp -r deploy/appspec.yml deploy/docker-compose.yml deploy/Caddyfile deploy/scripts bundle/
+          chmod +x bundle/scripts/*.sh   # zip에 실행 권한을 담아 CodeDeploy 훅이 바로 실행되게
           echo "IMAGE_URI=${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}" > bundle/image.env
           cd bundle && zip -qr ../bundle.zip .
 

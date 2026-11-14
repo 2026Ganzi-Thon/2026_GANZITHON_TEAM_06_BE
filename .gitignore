@@ -47,3 +47,10 @@ logs/
 
 ### Node (load-test) ###
 node_modules/
+
+### Terraform (state에는 리소스 정보가 남으므로 커밋하지 않음. .terraform.lock.hcl은 커밋) ###
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+crash.log
