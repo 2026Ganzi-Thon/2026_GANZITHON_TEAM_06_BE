@@ -86,7 +86,7 @@
     "code": "COMMON_INVALID_INPUT",
     "message": "입력값이 올바르지 않습니다.",
     "fieldErrors": [
-      { "field": "nickname", "reason": "닉네임은 1~10자여야 합니다." }
+      { "field": "nickname", "reason": "닉네임은 1~12자여야 합니다." }
     ]
   }
 }
@@ -100,7 +100,9 @@
 
 | code | HTTP | 설명 |
 |---|---|---|
-| `COMMON_INVALID_INPUT` | 400 | 요청 값 검증 실패 |
+| `COMMON_INVALID_INPUT` | 400 | 요청 값 검증 실패, JSON 형식 오류 |
+| `COMMON_NOT_FOUND` | 404 | 없는 경로 |
+| `COMMON_METHOD_NOT_ALLOWED` | 405 | 지원하지 않는 HTTP 메서드 |
 | `COMMON_INTERNAL_ERROR` | 500 | 알 수 없는 서버 오류 |
 | `ROOM_NOT_FOUND` | 404 | 없는 대기실 |
 | `TICKET_NOT_FOUND` | 404 | 없는 기다림 |
