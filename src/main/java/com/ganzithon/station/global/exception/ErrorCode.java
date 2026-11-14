@@ -25,10 +25,20 @@ public enum ErrorCode {
 
     // room
     ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "대기실을 찾을 수 없습니다."),
+    SITUATION_CHIP_NOT_FOUND(HttpStatus.NOT_FOUND, "이 대기실에 없는 상황 칩입니다."),
+
+    // user
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "계정을 찾을 수 없습니다."),
 
     // ticket
     TICKET_NOT_FOUND(HttpStatus.NOT_FOUND, "기다림을 찾을 수 없습니다."),
+    TICKET_FORBIDDEN(HttpStatus.FORBIDDEN, "내 기다림이 아닙니다."),
     TICKET_ALREADY_ENDED(HttpStatus.CONFLICT, "이미 종료된 기다림입니다."),
+    TICKET_NOT_ENDED(HttpStatus.CONFLICT, "아직 끝나지 않은 기다림입니다."),
+    TICKET_ALREADY_CLAIMED(HttpStatus.CONFLICT, "이미 계정으로 옮긴 기다림입니다."),
+
+    // blanket
+    BLANKET_PIECE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이 기다림의 담요 조각이 이미 있습니다."),
 
     // realtime
     BROADCAST_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "방송은 30초에 한 번만 할 수 있습니다.");
