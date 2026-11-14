@@ -1,0 +1,23 @@
+# 복사해서 terraform.tfvars로 만들고 값을 채웁니다. terraform.tfvars는 커밋하지 않습니다 (.gitignore).
+#   Copy-Item terraform.tfvars.example terraform.tfvars
+# 비밀값(DB 비밀번호, JWT 키)은 여기에 넣지 않습니다. 서버 /home/ubuntu/station/.env에만 둡니다.
+
+# 필수: 예산 알림 받을 이메일
+budget_email = "you@example.com"
+
+# 월 예산 한도(USD)
+budget_limit_usd = 20
+
+# EC2 유형: 평소 t8i.small(2GB), 시연 전 c7i-flex.large(4GB)로 바꿔 apply
+instance_type = "t8i.small"
+
+# 계정에 GitHub OIDC 공급자(token.actions.githubusercontent.com)가 이미 있으면 false
+create_github_oidc_provider = true
+
+# 아래는 기본값 그대로 두면 됩니다.
+# region             = "ap-northeast-2"
+# project            = "station"
+# github_org         = "2026Ganzi-Thon"
+# github_repo        = "2026_GANZITHON_TEAM_06_BE"
+# github_branch      = "dev"
+# deploy_bucket_name = "station-deploy-<계정ID>"   # 비워 두면 자동

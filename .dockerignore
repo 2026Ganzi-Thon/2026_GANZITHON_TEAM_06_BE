@@ -6,6 +6,7 @@ build
 out
 docs
 deploy
+infra
 load-test
 **/node_modules
 *.md
