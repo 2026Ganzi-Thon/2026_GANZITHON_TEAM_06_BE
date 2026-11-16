@@ -36,12 +36,12 @@ class SchemaSeedTest {
     EntityManager entityManager;
 
     @Test
-    void 대기실_3개가_순서대로_있고_카운터는_0() {
+    void 대기실_3개가_순서대로_있고_카운터는_99() {
         List<String> codes = jdbcTemplate.queryForList("select code from rooms order by sort_order", String.class);
         assertThat(codes).containsExactly("RESULT", "NO_REPLY", "GANZITHON_FINAL");
 
         Integer counterSum = jdbcTemplate.queryForObject(
-                "select count(*) from room_ticket_counters c join rooms r on r.id = c.room_id where c.last_number = 0",
+                "select count(*) from room_ticket_counters c join rooms r on r.id = c.room_id where c.last_number = 99",
                 Integer.class);
         assertThat(counterSum).isEqualTo(3);
     }
