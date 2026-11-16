@@ -8,6 +8,7 @@ import com.ganzithon.station.room.dto.response.SituationChipListResponse;
 import com.ganzithon.station.room.entity.Pattern;
 import com.ganzithon.station.room.entity.Room;
 import com.ganzithon.station.room.entity.SituationChip;
+import com.ganzithon.station.room.repository.PatternRepository;
 import com.ganzithon.station.room.repository.RoomRepository;
 import com.ganzithon.station.room.repository.SituationChipRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 대기실 정보 (담당: 하빈). 방, 상황 칩, 도안은 시드 데이터라 조회만 합니다.
@@ -27,6 +29,7 @@ public class RoomService {
 
     private final RoomRepository roomRepository;
     private final SituationChipRepository situationChipRepository;
+    private final PatternRepository patternRepository;
 
     // ── API용 (RoomController) ──
 
@@ -90,17 +93,28 @@ public class RoomService {
      * <p>지금은 DB에서 조회합니다. 요청이 많아지면 나중에 이 Service 안에서 캐시합니다 (DOMAIN.md 7장).</p>
      */
     public Pattern getRandomPattern() {
-        // TODO(하빈)
-        throw new UnsupportedOperationException("TODO(하빈): getRandomPattern");
+        return pickRandom(patternRepository.findAll());
     }
 
     /**
      * 지금 도안을 뺀 나머지 중 랜덤 하나.
      * <p>구현: 하빈 / 호출: ticket(털실 톡톡 "도안 바꾸기")</p>
-     * <p>검증: 반환값은 반드시 {@code currentPatternId}와 달라야 합니다. 도안이 1개뿐이라 고를 게 없을 때의 처리는 환희와 상의.</p>
+     * <p>도안이 2개 이상이면 반환값은 항상 {@code currentPatternId}와 다릅니다.
+     * 도안이 1개뿐이라 고를 게 없으면 에러 대신 그 도안을 그대로 돌려줍니다.</p>
      */
     public Pattern getRandomPatternExcept(Long currentPatternId) {
-        // TODO(하빈)
-        throw new UnsupportedOperationException("TODO(하빈): getRandomPatternExcept");
+        List<Pattern> patterns = patternRepository.findAll();
+        List<Pattern> others = patterns.stream()
+                .filter(pattern -> !pattern.getId().equals(currentPatternId))
+                .toList();
+        return pickRandom(others.isEmpty() ? patterns : others);
+    }
+
+    // 도안이 0개면 시드가 빠진 서버 설정 오류라 500으로 둡니다.
+    private Pattern pickRandom(List<Pattern> patterns) {
+        if (patterns.isEmpty()) {
+            throw new IllegalStateException("도안 시드 데이터가 없습니다.");
+        }
+        return patterns.get(ThreadLocalRandom.current().nextInt(patterns.size()));
     }
 }
