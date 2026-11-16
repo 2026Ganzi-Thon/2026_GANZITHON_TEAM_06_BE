@@ -6,6 +6,7 @@ import com.ganzithon.station.realtime.store.RoomPassengerStore.JoinResult;
 import com.ganzithon.station.ticket.dto.response.PassengerTicketResponse;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -15,7 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class RoomPassengerStoreTest {
 
-    private final RoomPassengerStore store = new RoomPassengerStore(new RealtimeProperties(2));
+    private final RoomPassengerStore store = new RoomPassengerStore(
+            new RealtimeProperties(2, Duration.ofSeconds(30), Duration.ofSeconds(15), 20));
 
     @Test
     void 비어_있는_가장_앞_좌석에_앉고_다_차면_서서_기다린다() {
