@@ -8,7 +8,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -47,6 +49,25 @@ class RoomControllerTest {
                 .andExpect(jsonPath("$.data.slogan").value("서두르지 않아도 괜찮아요. 여기서는 마음의 속도를 낮춰도 돼요."))
                 .andExpect(jsonPath("$.data.retrospectQuestion1").value(nullValue()))
                 .andExpect(jsonPath("$.data.npcEmpathyCopy").value(nullValue()));
+    }
+
+    @Test
+    void 상황_칩_목록은_그_방의_칩만_순서대로() throws Exception {
+        mockMvc.perform(get("/api/v1/rooms/{roomCode}/situation-chips", "NO_REPLY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.situationChips", hasSize(6)))
+                .andExpect(jsonPath("$.data.situationChips[0].situationChipCode").value("NO_REPLY_READ_LONG_AGO"))
+                .andExpect(jsonPath("$.data.situationChips[0].label").value("읽음 표시 뜬 지 한참째"))
+                .andExpect(jsonPath("$.data.situationChips[*].situationChipCode",
+                        everyItem(startsWith("NO_REPLY_"))));
+    }
+
+    @Test
+    void 없는_대기실의_상황_칩_목록은_404_ROOM_NOT_FOUND() throws Exception {
+        mockMvc.perform(get("/api/v1/rooms/{roomCode}/situation-chips", "NOT_EXIST"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("ROOM_NOT_FOUND"));
     }
 
     @Test
