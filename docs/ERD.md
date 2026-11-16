@@ -134,7 +134,7 @@ erDiagram
 | id | bigint | PK | |
 | room_id | bigint | not null, FK → rooms | 칩이 속한 대기실 |
 | code | varchar(40) | not null, unique | 예: `NO_REPLY_WAITING_ANSWER` |
-| label | varchar(50) | not null | 예: 답장 기다리는 중 |
+| label | varchar(50) | not null | 예: 답장을 기다리는 중 |
 | sort_order | int | not null | |
 
 ### `patterns` — 도안 (담당: room, 시드 데이터)
