@@ -4,10 +4,12 @@ import com.ganzithon.station.global.exception.BusinessException;
 import com.ganzithon.station.global.exception.ErrorCode;
 import com.ganzithon.station.room.dto.response.RoomListResponse;
 import com.ganzithon.station.room.dto.response.RoomResponse;
+import com.ganzithon.station.room.dto.response.SituationChipListResponse;
 import com.ganzithon.station.room.entity.Pattern;
 import com.ganzithon.station.room.entity.Room;
 import com.ganzithon.station.room.entity.SituationChip;
 import com.ganzithon.station.room.repository.RoomRepository;
+import com.ganzithon.station.room.repository.SituationChipRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,7 @@ import java.util.List;
 public class RoomService {
 
     private final RoomRepository roomRepository;
+    private final SituationChipRepository situationChipRepository;
 
     // ── API용 (RoomController) ──
 
@@ -33,6 +36,10 @@ public class RoomService {
 
     public RoomResponse getRoom(String roomCode) {
         return RoomResponse.from(getRoomEntity(roomCode));
+    }
+
+    public SituationChipListResponse getSituationChipList(String roomCode) {
+        return SituationChipListResponse.from(getSituationChipEntityList(roomCode));
     }
 
     // ── 다른 도메인 Service용 (Controller에서 쓰지 않음) ──
@@ -62,8 +69,9 @@ public class RoomService {
      * @throws BusinessException ROOM_NOT_FOUND 없는 대기실, SITUATION_CHIP_NOT_FOUND 없거나 다른 방의 칩
      */
     public SituationChip getSituationChipEntity(String roomCode, String situationChipCode) {
-        // TODO(하빈): SituationChipRepository로 room.code와 chip.code를 같이 조건으로 조회
-        throw new UnsupportedOperationException("TODO(하빈): getSituationChipEntity");
+        Room room = getRoomEntity(roomCode);
+        return situationChipRepository.findByRoomAndCode(room, situationChipCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SITUATION_CHIP_NOT_FOUND));
     }
 
     /**
@@ -73,8 +81,7 @@ public class RoomService {
      * @throws BusinessException ROOM_NOT_FOUND 없는 대기실
      */
     public List<SituationChip> getSituationChipEntityList(String roomCode) {
-        // TODO(하빈): 상황 칩 목록 API(ON-02/SF-02)를 만들 때 같이 구현
-        throw new UnsupportedOperationException("TODO(하빈): getSituationChipEntityList");
+        return situationChipRepository.findAllByRoomOrderBySortOrderAsc(getRoomEntity(roomCode));
     }
 
     /**
