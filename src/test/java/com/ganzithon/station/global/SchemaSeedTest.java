@@ -49,7 +49,7 @@ class SchemaSeedTest {
     @Test
     void 상황_칩은_방별_개수와_순서가_맞음() {
         assertThat(chipCodes("RESULT")).hasSize(7).first().isEqualTo("RESULT_AFTER_INTERVIEW");
-        assertThat(chipCodes("NO_REPLY")).hasSize(6).last().isEqualTo("NO_REPLY_ONE_LINE");
+        assertThat(chipCodes("NO_REPLY")).hasSize(6).last().isEqualTo("NO_REPLY_CHECK_SENT_TIME");
         assertThat(chipCodes("GANZITHON_FINAL")).hasSize(5).last().isEqualTo("FINAL_LAST_COMMIT");
     }
 

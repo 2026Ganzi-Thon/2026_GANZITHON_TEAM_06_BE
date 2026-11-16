@@ -119,4 +119,12 @@ class RoomServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.ROOM_NOT_FOUND);
     }
+
+    @Test
+    void 읽씹_방_상황_칩은_와이어프레임_S06_문구_순서() {
+        assertThat(roomService.getSituationChipEntityList("NO_REPLY"))
+                .extracting(SituationChip::getLabel)
+                .containsExactly("읽음 표시 뜬 지 한참째", "답장을 기다리는 중", "보낸 메시지에 소식이 없는 중",
+                        "대화창을 열었다 닫았다 하는 중", "아직 1이 안 사라진 중", "보낸 시간을 자꾸 다시 보는 중");
+    }
 }
