@@ -1,6 +1,7 @@
 package com.ganzithon.station.realtime.message;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.ganzithon.station.global.exception.BusinessException;
 import com.ganzithon.station.global.exception.ErrorCode;
 
 /**
@@ -18,6 +19,13 @@ public record ErrorMessage(
 ) {
     public static ErrorMessage of(ErrorCode errorCode) {
         return new ErrorMessage(MessageType.ERROR, errorCode.getCode(), errorCode.getMessage(), null,
+                System.currentTimeMillis());
+    }
+
+    /** 쿨다운처럼 retryAfterMs가 있는 예외도 그대로 전달 */
+    public static ErrorMessage from(BusinessException e) {
+        ErrorCode errorCode = e.getErrorCode();
+        return new ErrorMessage(MessageType.ERROR, errorCode.getCode(), errorCode.getMessage(), e.getRetryAfterMs(),
                 System.currentTimeMillis());
     }
 }

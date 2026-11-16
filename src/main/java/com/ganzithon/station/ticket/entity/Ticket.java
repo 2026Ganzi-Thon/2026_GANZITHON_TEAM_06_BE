@@ -122,6 +122,14 @@ public class Ticket extends BaseTimeEntity {
     }
 
     /**
+     * 방송(BR-01) 기록. 고른 상태 칩으로 호칭이 바뀌고, 상황 칩은 조각의 "기다림 이름"이 됩니다.
+     */
+    public void recordBroadcast(SituationChip situationChip, MoodChip moodChip) {
+        this.lastSituationChip = situationChip;
+        this.moodChip = moodChip;
+    }
+
+    /**
      * 대기실 호칭. 상태 칩이 있으면 "104번 두근두근한 양", 없으면 "104번 양".
      * 저장하지 않고 승차권 번호와 지금 상태 칩으로 만듭니다 (방송으로 상태 칩이 바뀌면 호칭도 바뀜).
      */

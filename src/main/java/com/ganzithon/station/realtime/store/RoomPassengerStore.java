@@ -1,6 +1,7 @@
 package com.ganzithon.station.realtime.store;
 
 import com.ganzithon.station.global.config.RealtimeProperties;
+import com.ganzithon.station.room.entity.MoodChip;
 import com.ganzithon.station.ticket.dto.response.PassengerTicketResponse;
 import org.springframework.stereotype.Component;
 
@@ -61,6 +62,24 @@ public class RoomPassengerStore {
     public synchronized Optional<Departure> leave(String sessionId) {
         Passenger passenger = bySession.get(sessionId);
         return passenger == null ? Optional.empty() : remove(passenger);
+    }
+
+    /** 이 세션으로 접속해 있는 승객 */
+    public synchronized Optional<Passenger> findBySessionId(String sessionId) {
+        return Optional.ofNullable(bySession.get(sessionId));
+    }
+
+    /** 방송으로 상태 칩이 바뀐 승객의 호칭을 고칩니다. 그 사이 나갔으면 아무것도 하지 않습니다. */
+    public synchronized void updateMood(Long ticketId, String roomCode, String displayName, MoodChip moodChip) {
+        Map<Long, Passenger> members = rooms.get(roomCode);
+        Passenger current = members == null ? null : members.get(ticketId);
+        if (current == null) {
+            return;
+        }
+        Passenger updated = new Passenger(current.ticketId(), current.roomCode(), current.ticketNumber(),
+                displayName, moodChip, current.startedAt(), current.seatNumber(), current.sessionId());
+        members.put(ticketId, updated);
+        bySession.put(updated.sessionId(), updated);
     }
 
     public synchronized List<Passenger> findByRoomCode(String roomCode) {

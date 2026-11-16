@@ -11,6 +11,10 @@ public enum MessageType {
     JOIN,
     /** 방 전체: 승객 퇴장 */
     LEAVE,
+    /** 나에게만: 방송 요청이 대기열에 들어감 */
+    BROADCAST_ACCEPTED,
+    /** 방 전체: 전광판 방송 송출 */
+    BROADCAST,
     /** 나에게만: 요청 실패 */
     ERROR
 }

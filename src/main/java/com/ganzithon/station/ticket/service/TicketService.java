@@ -9,8 +9,10 @@ import com.ganzithon.station.global.security.Requester;
 import com.ganzithon.station.room.entity.MoodChip;
 import com.ganzithon.station.room.entity.Pattern;
 import com.ganzithon.station.room.entity.Room;
+import com.ganzithon.station.room.entity.SituationChip;
 import com.ganzithon.station.room.service.RoomService;
 import com.ganzithon.station.ticket.dto.request.TicketCreateRequest;
+import com.ganzithon.station.ticket.dto.response.BroadcastRecordResponse;
 import com.ganzithon.station.ticket.dto.response.PassengerTicketResponse;
 import com.ganzithon.station.ticket.dto.response.TicketClaimResponse;
 import com.ganzithon.station.ticket.dto.response.TicketCreateResponse;
@@ -149,12 +151,20 @@ public class TicketService {
      * <p>하는 일: 상태 칩(필수)으로 호칭을 바꾸고, 마지막 상황 칩(조각의 "기다림 이름")을 기록합니다.
      * 칩이 그 방의 것인지는 {@code roomService.getSituationChipEntity}로 확인합니다.</p>
      *
-     * @return 바뀐 대기실 호칭. 예: 104번 두근두근한 양
+     * <p>소유자는 대기실 입장 때 이미 확인했으므로 여기서 다시 확인하지 않습니다.</p>
+     *
+     * @return 바뀐 대기실 호칭과 상황 칩 문구 (방송 문장용)
      * @throws BusinessException TICKET_NOT_FOUND, TICKET_ALREADY_ENDED, SITUATION_CHIP_NOT_FOUND
      */
     @Transactional
-    public String recordBroadcast(Long ticketId, String situationChipCode, MoodChip moodChip) {
-        // TODO(환희)
-        throw new UnsupportedOperationException("TODO(환희): recordBroadcast");
+    public BroadcastRecordResponse recordBroadcast(Long ticketId, String situationChipCode, MoodChip moodChip) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TICKET_NOT_FOUND));
+        if (!ticket.isWaiting()) {
+            throw new BusinessException(ErrorCode.TICKET_ALREADY_ENDED);
+        }
+        SituationChip situationChip = roomService.getSituationChipEntity(ticket.getRoom().getCode(), situationChipCode);
+        ticket.recordBroadcast(situationChip, moodChip);
+        return new BroadcastRecordResponse(ticket.getDisplayName(), situationChip.getLabel());
     }
 }

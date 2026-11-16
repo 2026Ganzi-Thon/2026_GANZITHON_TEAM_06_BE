@@ -42,7 +42,9 @@ public enum ErrorCode {
     BLANKET_PIECE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이 기다림의 담요 조각이 이미 있습니다."),
 
     // realtime
-    BROADCAST_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "방송은 30초에 한 번만 할 수 있습니다.");
+    REALTIME_NOT_JOINED(HttpStatus.CONFLICT, "먼저 대기실에 입장해야 합니다."),
+    BROADCAST_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "방송은 30초에 한 번만 할 수 있습니다."),
+    BROADCAST_QUEUE_FULL(HttpStatus.TOO_MANY_REQUESTS, "방송 대기열이 가득 찼습니다. 잠시 후 다시 시도해 주세요.");
 
     private final HttpStatus status;
     private final String message;
