@@ -106,4 +106,15 @@ public class Ticket extends BaseTimeEntity {
         this.status = TicketStatus.WAITING;
         this.yarnSpent = 0;
     }
+
+    /**
+     * 대기실 호칭. 상태 칩이 있으면 "104번 두근두근한 양", 없으면 "104번 양".
+     * 저장하지 않고 승차권 번호와 지금 상태 칩으로 만듭니다 (방송으로 상태 칩이 바뀌면 호칭도 바뀜).
+     */
+    public String getDisplayName() {
+        if (moodChip == null) {
+            return ticketNumber + "번 양";
+        }
+        return ticketNumber + "번 " + moodChip.getLabel() + " 양";
+    }
 }

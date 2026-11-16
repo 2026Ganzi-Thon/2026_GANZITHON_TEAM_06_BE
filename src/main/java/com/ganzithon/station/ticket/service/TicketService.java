@@ -1,17 +1,28 @@
 package com.ganzithon.station.ticket.service;
 
 import com.ganzithon.station.blanket.service.BlanketService;
+import com.ganzithon.station.global.config.TrainProperties;
 import com.ganzithon.station.global.exception.BusinessException;
+import com.ganzithon.station.global.security.GuestTokenGenerator;
 import com.ganzithon.station.global.security.Requester;
 import com.ganzithon.station.room.entity.MoodChip;
+import com.ganzithon.station.room.entity.Pattern;
+import com.ganzithon.station.room.entity.Room;
 import com.ganzithon.station.room.service.RoomService;
+import com.ganzithon.station.ticket.dto.request.TicketCreateRequest;
 import com.ganzithon.station.ticket.dto.response.PassengerTicketResponse;
 import com.ganzithon.station.ticket.dto.response.TicketClaimResponse;
+import com.ganzithon.station.ticket.dto.response.TicketCreateResponse;
+import com.ganzithon.station.ticket.entity.Ticket;
+import com.ganzithon.station.ticket.repository.RoomTicketCounterRepository;
+import com.ganzithon.station.ticket.repository.TicketRepository;
+import com.ganzithon.station.user.entity.User;
 import com.ganzithon.station.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -28,6 +39,52 @@ public class TicketService {
     private final RoomService roomService;
     private final UserService userService;
     private final BlanketService blanketService;
+    private final TicketRepository ticketRepository;
+    private final RoomTicketCounterRepository roomTicketCounterRepository;
+    private final GuestTokenGenerator guestTokenGenerator;
+    private final TrainProperties trainProperties;
+
+    // ── API용 (TicketController) ──
+
+    /**
+     * 승차권 발급 (ON-03, ON-04). POST /api/v1/tickets
+     * <ul>
+     *     <li>로그인 상태: 계정 소유. 게스트 토큰은 만들지 않습니다 (함께 보내도 무시)</li>
+     *     <li>비로그인: 보낸 X-Guest-Token으로 발급한 승차권이 이미 있으면 그 토큰을 다시 쓰고, 아니면 새로 만듭니다.
+     *         한 브라우저의 승차권이 토큰 하나로 묶여서 나중에 계정으로 옮기기(MY-08)가 쉽습니다.
+     *         처음 보는 토큰은 쓰지 않습니다 (클라이언트가 정한 추측하기 쉬운 값을 막기 위해)</li>
+     *     <li>도안은 랜덤 배정 (YT-01). 진행 중인 승차권이 있어도 새로 발급합니다</li>
+     * </ul>
+     *
+     * @throws BusinessException ROOM_NOT_FOUND 없는 대기실, USER_NOT_FOUND 없는 계정
+     */
+    @Transactional
+    public TicketCreateResponse createTicket(Requester requester, TicketCreateRequest request) {
+        Room room = roomService.getRoomEntity(request.roomCode());
+        User user = requester.isLoggedIn() ? userService.getUserEntity(requester.userId()) : null;
+        String guestToken = requester.isLoggedIn() ? null : resolveGuestToken(requester.guestToken());
+        Pattern pattern = roomService.getRandomPattern();
+        int ticketNumber = roomTicketCounterRepository.incrementAndGetLastNumber(room.getId());
+        Instant now = Instant.now();
+
+        Ticket ticket = ticketRepository.save(Ticket.builder()
+                .room(room)
+                .ticketNumber(ticketNumber)
+                .user(user)
+                .guestToken(guestToken)
+                .moodChip(request.moodChip())
+                .pattern(pattern)
+                .startedAt(now)
+                .build());
+        return TicketCreateResponse.of(ticket, now, trainProperties.interval());
+    }
+
+    private String resolveGuestToken(String requestedGuestToken) {
+        if (requestedGuestToken != null && ticketRepository.existsByGuestToken(requestedGuestToken)) {
+            return requestedGuestToken;
+        }
+        return guestTokenGenerator.generate();
+    }
 
     /**
      * 비로그인으로 끝낸 기다림들을 계정으로 옮기기 (MY-08). POST /api/v1/tickets/claim
