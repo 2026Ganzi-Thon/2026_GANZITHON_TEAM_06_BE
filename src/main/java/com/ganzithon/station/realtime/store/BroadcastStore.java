@@ -1,0 +1,100 @@
+package com.ganzithon.station.realtime.store;
+
+import com.ganzithon.station.global.config.RealtimeProperties;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 방송 대기열(방별)과 쿨다운(승차권별). 메모리만 씁니다.
+ * 시각(now)은 호출하는 쪽이 넘겨서, 시간이 지나는 상황을 테스트에서 바로 만들 수 있게 했습니다.
+ */
+@Component
+public class BroadcastStore {
+
+    /** roomCode → 송출을 기다리는 방송 (먼저 온 순서) */
+    private final Map<String, Deque<QueuedBroadcast>> queues = new HashMap<>();
+    /** roomCode → 마지막 송출 시각 */
+    private final Map<String, Long> lastDispatchedAt = new HashMap<>();
+    /** ticketId → 마지막 방송 시각. 재접속해도 쿨다운을 피할 수 없게 세션이 아니라 승차권 기준 */
+    private final Map<Long, Long> lastBroadcastAt = new HashMap<>();
+
+    private final long cooldownMs;
+    private final long displayMs;
+    private final int queueSize;
+
+    public BroadcastStore(RealtimeProperties realtimeProperties) {
+        this.cooldownMs = realtimeProperties.broadcastCooldown().toMillis();
+        this.displayMs = realtimeProperties.broadcastDisplay().toMillis();
+        this.queueSize = realtimeProperties.broadcastQueueSize();
+    }
+
+    /**
+     * 쿨다운을 점유합니다. 확인과 기록을 한 번에 해서, 두 번 빠르게 보내도 하나만 통과합니다.
+     *
+     * @return 0이면 점유 성공, 양수면 남은 쿨다운(ms)
+     */
+    public synchronized long tryAcquireCooldown(Long ticketId, long now) {
+        Long last = lastBroadcastAt.get(ticketId);
+        if (last != null && now - last < cooldownMs) {
+            return cooldownMs - (now - last);
+        }
+        lastBroadcastAt.put(ticketId, now);
+        return 0;
+    }
+
+    /** 점유한 쿨다운을 되돌립니다 (방송 기록이 실패한 경우). 그 사이 다시 점유됐으면 건드리지 않습니다. */
+    public synchronized void releaseCooldown(Long ticketId, long acquiredAt) {
+        lastBroadcastAt.remove(ticketId, acquiredAt);
+    }
+
+    public synchronized boolean isQueueFull(String roomCode) {
+        Deque<QueuedBroadcast> queue = queues.get(roomCode);
+        return queue != null && queue.size() >= queueSize;
+    }
+
+    /** @return 대기 순번 (1이면 다음 차례) */
+    public synchronized int enqueue(QueuedBroadcast broadcast) {
+        Deque<QueuedBroadcast> queue = queues.computeIfAbsent(broadcast.roomCode(), roomCode -> new ArrayDeque<>());
+        queue.addLast(broadcast);
+        return queue.size();
+    }
+
+    /**
+     * 송출할 방송. 방마다 마지막 송출 후 노출 시간이 지났으면 하나씩 꺼냅니다.
+     * 대기열이 비어 있던 방의 첫 방송은 바로 나가고, 밀려 있으면 노출 시간 간격으로 나갑니다.
+     * 끝난 쿨다운 기록도 여기서 정리합니다.
+     */
+    public synchronized List<QueuedBroadcast> pollDue(long now) {
+        List<QueuedBroadcast> due = new ArrayList<>();
+        Iterator<Map.Entry<String, Deque<QueuedBroadcast>>> iterator = queues.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, Deque<QueuedBroadcast>> entry = iterator.next();
+            Long last = lastDispatchedAt.get(entry.getKey());
+            if (last != null && now - last < displayMs) {
+                continue;
+            }
+            due.add(entry.getValue().pollFirst());
+            lastDispatchedAt.put(entry.getKey(), now);
+            if (entry.getValue().isEmpty()) {
+                iterator.remove();
+            }
+        }
+        lastBroadcastAt.values().removeIf(broadcastAt -> now - broadcastAt >= cooldownMs);
+        return due;
+    }
+
+    public long getCooldownMs() {
+        return cooldownMs;
+    }
+
+    public long getDisplayMs() {
+        return displayMs;
+    }
+}

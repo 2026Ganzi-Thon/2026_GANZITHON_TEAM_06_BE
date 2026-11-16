@@ -48,7 +48,7 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/error").permitAll()
-                        // WebSocket: 연결 인증은 realtime 작업 때 STOMP CONNECT에서 처리
+                        // WebSocket: 연결 인증은 STOMP CONNECT 헤더로 처리 (StompAuthChannelInterceptor)
                         .requestMatchers("/ws/**").permitAll()
                         // 인증 없이 쓰는 API
                         .requestMatchers(HttpMethod.GET, "/api/v1/rooms/**").permitAll()
