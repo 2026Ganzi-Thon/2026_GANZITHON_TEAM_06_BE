@@ -3,7 +3,9 @@ package com.ganzithon.station.room.service;
 import com.ganzithon.station.TestcontainersConfiguration;
 import com.ganzithon.station.global.exception.BusinessException;
 import com.ganzithon.station.global.exception.ErrorCode;
+import com.ganzithon.station.room.entity.Pattern;
 import com.ganzithon.station.room.entity.SituationChip;
+import com.ganzithon.station.room.repository.PatternRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,6 +23,9 @@ class RoomServiceTest {
 
     @Autowired
     RoomService roomService;
+
+    @Autowired
+    PatternRepository patternRepository;
 
     @Test
     void 그_방의_상황_칩은_찾는다() {
@@ -58,5 +63,23 @@ class RoomServiceTest {
                 .extracting(SituationChip::getCode)
                 .containsExactly("FINAL_AFTER_PRESENTATION", "FINAL_JUDGING", "FINAL_ALL_NIGHTER",
                         "FINAL_AFTER_DEMO", "FINAL_LAST_COMMIT");
+    }
+
+    @Test
+    void 랜덤_도안은_시드_도안_중_하나() {
+        for (int i = 0; i < 20; i++) {
+            assertThat(roomService.getRandomPattern().getCode())
+                    .isIn("PATTERN_01", "PATTERN_02", "PATTERN_03");
+        }
+    }
+
+    @Test
+    void 도안_바꾸기는_지금_도안이_절대_나오지_않는다() {
+        for (Pattern current : patternRepository.findAll()) {
+            for (int i = 0; i < 20; i++) {
+                assertThat(roomService.getRandomPatternExcept(current.getId()).getId())
+                        .isNotEqualTo(current.getId());
+            }
+        }
     }
 }
