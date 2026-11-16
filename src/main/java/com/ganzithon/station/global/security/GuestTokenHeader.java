@@ -15,7 +15,11 @@ public final class GuestTokenHeader {
 
     /** 헤더가 없거나 형식이 맞지 않으면 null */
     public static String resolve(HttpServletRequest request) {
-        String value = request.getHeader(NAME);
+        return normalize(request.getHeader(NAME));
+    }
+
+    /** 헤더 값 정리 (STOMP CONNECT 헤더에도 같은 규칙). 없거나 형식이 맞지 않으면 null */
+    public static String normalize(String value) {
         if (value == null) {
             return null;
         }

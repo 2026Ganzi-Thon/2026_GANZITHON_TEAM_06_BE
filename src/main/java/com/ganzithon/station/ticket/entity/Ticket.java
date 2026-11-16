@@ -108,6 +108,20 @@ public class Ticket extends BaseTimeEntity {
     }
 
     /**
+     * 요청한 사람의 승차권인지. 계정(userId)이나 게스트 토큰 중 하나가 맞으면 소유자입니다.
+     * (계정으로 옮긴 승차권은 둘 다 있어서 어느 쪽으로도 확인됩니다)
+     */
+    public boolean isOwnedBy(Long userId, String guestToken) {
+        boolean ownedByUser = user != null && userId != null && userId.equals(user.getId());
+        boolean ownedByGuest = this.guestToken != null && this.guestToken.equals(guestToken);
+        return ownedByUser || ownedByGuest;
+    }
+
+    public boolean isWaiting() {
+        return status == TicketStatus.WAITING;
+    }
+
+    /**
      * 대기실 호칭. 상태 칩이 있으면 "104번 두근두근한 양", 없으면 "104번 양".
      * 저장하지 않고 승차권 번호와 지금 상태 칩으로 만듭니다 (방송으로 상태 칩이 바뀌면 호칭도 바뀜).
      */

@@ -3,6 +3,7 @@ package com.ganzithon.station.ticket.service;
 import com.ganzithon.station.blanket.service.BlanketService;
 import com.ganzithon.station.global.config.TrainProperties;
 import com.ganzithon.station.global.exception.BusinessException;
+import com.ganzithon.station.global.exception.ErrorCode;
 import com.ganzithon.station.global.security.GuestTokenGenerator;
 import com.ganzithon.station.global.security.Requester;
 import com.ganzithon.station.room.entity.MoodChip;
@@ -119,8 +120,27 @@ public class TicketService {
      * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN, TICKET_ALREADY_ENDED
      */
     public PassengerTicketResponse getPassengerTicket(Long ticketId, Requester requester) {
-        // TODO(환희)
-        throw new UnsupportedOperationException("TODO(환희): getPassengerTicket");
+        Ticket ticket = getOwnedTicket(ticketId, requester);
+        if (!ticket.isWaiting()) {
+            throw new BusinessException(ErrorCode.TICKET_ALREADY_ENDED);
+        }
+        return new PassengerTicketResponse(
+                ticket.getId(),
+                ticket.getRoom().getCode(),
+                ticket.getTicketNumber(),
+                ticket.getDisplayName(),
+                ticket.getMoodChip(),
+                ticket.getStartedAt());
+    }
+
+    /** 요청한 사람의 승차권. 없으면 TICKET_NOT_FOUND, 남의 것이면 TICKET_FORBIDDEN */
+    private Ticket getOwnedTicket(Long ticketId, Requester requester) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TICKET_NOT_FOUND));
+        if (!ticket.isOwnedBy(requester.userId(), requester.guestToken())) {
+            throw new BusinessException(ErrorCode.TICKET_FORBIDDEN);
+        }
+        return ticket;
     }
 
     /**
