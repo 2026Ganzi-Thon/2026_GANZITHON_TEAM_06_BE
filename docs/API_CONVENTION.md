@@ -117,7 +117,9 @@
 | `TICKET_ALREADY_CLAIMED` | 409 | 이미 계정으로 옮긴 기다림 |
 | `TICKET_ROOM_MISMATCH` | 400 | 다른 대기실의 승차권으로 입장 |
 | `BLANKET_PIECE_ALREADY_EXISTS` | 409 | 이 기다림의 담요 조각이 이미 있음 |
-| `BROADCAST_COOLDOWN` | 429 | 방송 30초 쿨다운 중 |
+| `REALTIME_NOT_JOINED` | 409 | 대기실에 입장하지 않고 실시간 동작(방송 등) 요청 |
+| `BROADCAST_COOLDOWN` | 429 | 방송 30초 쿨다운 중 (WebSocket ERROR에 `retryAfterMs`) |
+| `BROADCAST_QUEUE_FULL` | 429 | 방송 대기열이 가득 참 |
 
 > 위 표는 예시입니다. 새 코드가 필요하면 `global/` 담당자에게 요청하고, 추가되면 이 표도 같이 갱신합니다.
 
