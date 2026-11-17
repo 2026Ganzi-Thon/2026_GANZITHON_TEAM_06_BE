@@ -140,7 +140,8 @@ public class TicketService {
     /**
      * 털실 톡톡 "역장에게 전달" (YT-04). POST /api/v1/tickets/{ticketId}/knitting/deliver (body 없음)
      * <p>전달 시각만 기록합니다 (새로고침해도 털실 보따리 아이콘이 남도록). 탭·채우기는 전부 프론트가 하고 서버는 받지 않습니다.
-     * 털실을 한 올이라도 받았어야(열차가 한 대 이상 지나감) 전달할 수 있습니다. 이미 전달했으면 처음 시각을 그대로 돌려줍니다.</p>
+     * 남은 털실이 1올 이상이어야 전달할 수 있습니다 (도안 바꾸기로 털실을 다 썼으면 열차가 더 지나가야 함).
+     * 이미 전달했으면 처음 시각을 그대로 돌려줍니다.</p>
      *
      * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN, TICKET_ALREADY_ENDED, KNITTING_NOT_ENOUGH_YARN
      */
@@ -149,7 +150,7 @@ public class TicketService {
         Ticket ticket = getOwnedTicket(ticketId, requester);
         requireWaiting(ticket);
         Instant now = Instant.now();
-        if (ticket.countPassedTrains(now, trainProperties.interval()) < 1) {
+        if (ticket.countRemainingYarn(now, trainProperties.interval()) < 1) {
             throw new BusinessException(ErrorCode.KNITTING_NOT_ENOUGH_YARN);
         }
         return new KnittingDeliverResponse(ticket.deliverKnitting(now));
