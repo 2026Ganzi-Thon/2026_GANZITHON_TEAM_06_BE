@@ -11,6 +11,8 @@ import com.ganzithon.station.user.dto.response.UserMeResponse;
 import com.ganzithon.station.user.entity.User;
 import com.ganzithon.station.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,8 @@ import java.time.Instant;
 @Transactional(readOnly = true)
 public class UserService {
 
+    private static final String NICKNAME_UNIQUE_CONSTRAINT = "uk_users_nickname";
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AccountTokenProvider accountTokenProvider;
@@ -41,11 +45,24 @@ public class UserService {
         if (userRepository.existsByNickname(request.nickname())) {
             throw new BusinessException(ErrorCode.USER_NICKNAME_DUPLICATED);
         }
-        User user = userRepository.save(User.builder()
-                .nickname(request.nickname())
-                .pinHash(passwordEncoder.encode(request.pin()))
-                .build());
+        User user;
+        try {
+            user = userRepository.saveAndFlush(User.builder()
+                    .nickname(request.nickname())
+                    .pinHash(passwordEncoder.encode(request.pin()))
+                    .build());
+        } catch (DataIntegrityViolationException e) {
+            if (isNicknameUniqueViolation(e)) {
+                throw new BusinessException(ErrorCode.USER_NICKNAME_DUPLICATED);
+            }
+            throw e;
+        }
         return UserAuthResponse.of(user.getNickname(), accountTokenProvider.issue(user.getId()).accessToken());
+    }
+
+    private boolean isNicknameUniqueViolation(DataIntegrityViolationException e) {
+        return e.getCause() instanceof ConstraintViolationException cve
+                && NICKNAME_UNIQUE_CONSTRAINT.equals(cve.getConstraintName());
     }
 
     /**
