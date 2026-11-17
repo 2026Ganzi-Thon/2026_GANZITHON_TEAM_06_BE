@@ -35,6 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -79,7 +80,7 @@ public class TicketService {
         String guestToken = requester.isLoggedIn() ? null : resolveGuestToken(requester.guestToken());
         Pattern pattern = roomService.getRandomPattern();
         int ticketNumber = roomTicketCounterRepository.incrementAndGetLastNumber(room.getId());
-        Instant now = Instant.now();
+        Instant now = now();
 
         Ticket ticket = ticketRepository.save(Ticket.builder()
                 .room(room)
@@ -108,7 +109,7 @@ public class TicketService {
      */
     public TicketResponse getTicket(Long ticketId, Requester requester) {
         Ticket ticket = getOwnedTicket(ticketId, requester);
-        return TicketResponse.of(ticket, Instant.now(), trainProperties.interval());
+        return TicketResponse.of(ticket, now(), trainProperties.interval());
     }
 
     /**
@@ -124,7 +125,7 @@ public class TicketService {
     public KnittingPatternChangeResponse changeKnittingPattern(Long ticketId, Requester requester) {
         Ticket ticket = getOwnedTicket(ticketId, requester);
         requireWaiting(ticket);
-        Instant now = Instant.now();
+        Instant now = now();
         int passedTrains = ticket.countPassedTrains(now, trainProperties.interval());
         if (ticket.countRemainingYarn(now, trainProperties.interval()) < 1) {
             throw new BusinessException(ErrorCode.KNITTING_NOT_ENOUGH_YARN);
@@ -149,7 +150,7 @@ public class TicketService {
     public KnittingDeliverResponse deliverKnitting(Long ticketId, Requester requester) {
         Ticket ticket = getOwnedTicket(ticketId, requester);
         requireWaiting(ticket);
-        Instant now = Instant.now();
+        Instant now = now();
         if (ticket.countRemainingYarn(now, trainProperties.interval()) < 1) {
             throw new BusinessException(ErrorCode.KNITTING_NOT_ENOUGH_YARN);
         }
@@ -172,7 +173,7 @@ public class TicketService {
     @Transactional
     public TicketEndResponse endTicket(Long ticketId, Requester requester, TicketEndRequest request) {
         Ticket ticket = getOwnedTicket(ticketId, requester);
-        Instant endedAt = Instant.now();
+        Instant endedAt = now();
         if (!ticket.isWaiting() || ticketRepository.endIfWaiting(ticketId, request.endReason(), endedAt) == 0) {
             throw new BusinessException(ErrorCode.TICKET_ALREADY_ENDED);
         }
@@ -254,6 +255,14 @@ public class TicketService {
                 ticket.getDisplayName(),
                 ticket.getMoodChip(),
                 ticket.getStartedAt());
+    }
+
+    /**
+     * 지금 시각을 DB(timestamptz)와 같은 마이크로초까지만 씁니다.
+     * Linux에서는 Instant.now()가 나노초까지 나와서, 응답에 준 시각과 DB에서 다시 읽은 시각이 달라지기 때문입니다.
+     */
+    private static Instant now() {
+        return Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
 
     private static void requireWaiting(Ticket ticket) {
