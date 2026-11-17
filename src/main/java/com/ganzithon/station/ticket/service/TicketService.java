@@ -15,6 +15,7 @@ import com.ganzithon.station.room.entity.SituationChip;
 import com.ganzithon.station.room.service.RoomService;
 import com.ganzithon.station.ticket.dto.request.TicketCreateRequest;
 import com.ganzithon.station.ticket.dto.request.TicketEndRequest;
+import com.ganzithon.station.ticket.dto.request.TicketMoodChipUpdateRequest;
 import com.ganzithon.station.ticket.dto.response.BroadcastRecordResponse;
 import com.ganzithon.station.ticket.dto.response.KnittingDeliverResponse;
 import com.ganzithon.station.ticket.dto.response.KnittingPatternChangeResponse;
@@ -110,6 +111,21 @@ public class TicketService {
      */
     public TicketResponse getTicket(Long ticketId, Requester requester) {
         Ticket ticket = getOwnedTicket(ticketId, requester);
+        return TicketResponse.of(ticket, now(), trainProperties.interval());
+    }
+
+    /**
+     * 상태 칩 바꾸기 (ON-03, 온보딩용). PATCH /api/v1/tickets/{ticketId}
+     * <p>S04에서 뒤로 가서 칩을 다시 고르면 재발급 대신 이걸 부릅니다. 번호·도안은 그대로라 안 쓰는 승차권이 생기지 않습니다.
+     * 대기실 안에서 칩을 바꾸는 방법은 방송(BR-01)입니다. 여기서 바꾸면 다른 승객 화면의 카드는 다음 방송·재입장 때 맞춰집니다.</p>
+     *
+     * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN, TICKET_ALREADY_ENDED
+     */
+    @Transactional
+    public TicketResponse changeMoodChip(Long ticketId, Requester requester, TicketMoodChipUpdateRequest request) {
+        Ticket ticket = getOwnedTicket(ticketId, requester);
+        requireWaiting(ticket);
+        ticket.changeMoodChip(request.moodChip());
         return TicketResponse.of(ticket, now(), trainProperties.interval());
     }
 

@@ -135,6 +135,13 @@ public class Ticket extends BaseTimeEntity {
     }
 
     /**
+     * 온보딩에서 상태 칩을 다시 고름 (ON-03). null이면 칩 없이 "104번 양". 번호·도안은 그대로입니다.
+     */
+    public void changeMoodChip(MoodChip moodChip) {
+        this.moodChip = moodChip;
+    }
+
+    /**
      * 털실 톡톡 "역장에게 전달" (YT-04). 이미 전달했으면 처음 시각을 그대로 둡니다.
      * 도안을 바꾸면 전달 기록이 지워지므로(다시 채워야 함) 그 뒤에는 새로 기록됩니다.
      */

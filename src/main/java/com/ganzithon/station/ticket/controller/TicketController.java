@@ -6,6 +6,7 @@ import com.ganzithon.station.global.security.Requester;
 import com.ganzithon.station.ticket.dto.request.TicketClaimRequest;
 import com.ganzithon.station.ticket.dto.request.TicketCreateRequest;
 import com.ganzithon.station.ticket.dto.request.TicketEndRequest;
+import com.ganzithon.station.ticket.dto.request.TicketMoodChipUpdateRequest;
 import com.ganzithon.station.ticket.dto.response.KnittingDeliverResponse;
 import com.ganzithon.station.ticket.dto.response.KnittingPatternChangeResponse;
 import com.ganzithon.station.ticket.dto.response.TicketClaimResponse;
@@ -21,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -63,6 +65,22 @@ public class TicketController {
             @PathVariable Long ticketId,
             @CurrentUser Requester requester) {
         return ResponseEntity.ok(ApiResponse.success(ticketService.getTicket(ticketId, requester)));
+    }
+
+    @Operation(summary = "상태 칩 바꾸기 (온보딩용)",
+            description = """
+                    승차권의 상태 칩만 바꿉니다 (ON-03). 승차권 화면(S04)에서 뒤로 가서 칩을 다시 고른 경우, 재발급 대신 이걸 부르세요.
+                    - 번호와 도안은 그대로이고, 바뀐 호칭(displayName)을 포함한 승차권 상태를 돌려줍니다 (GET /api/v1/tickets/{ticketId}와 같은 형태).
+                    - moodChip이 null이거나 빠지면 칩 없이 "104번 양"이 됩니다.
+                    - 대기실 안에서 칩을 바꾸는 방법은 방송입니다. 여기서 바꾸면 다른 승객 화면의 카드는 다음 방송·재입장 때 맞춰집니다.
+                    - 남의 승차권이면 403 TICKET_FORBIDDEN, 없으면 404 TICKET_NOT_FOUND, 끝난 기다림이면 409 TICKET_ALREADY_ENDED,
+                      목록에 없는 칩이면 400 COMMON_INVALID_INPUT""")
+    @PatchMapping("/{ticketId}")
+    public ResponseEntity<ApiResponse<TicketResponse>> changeMoodChip(
+            @PathVariable Long ticketId,
+            @CurrentUser Requester requester,
+            @RequestBody TicketMoodChipUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(ticketService.changeMoodChip(ticketId, requester, request)));
     }
 
     @Operation(summary = "털실 톡톡 도안 바꾸기",
