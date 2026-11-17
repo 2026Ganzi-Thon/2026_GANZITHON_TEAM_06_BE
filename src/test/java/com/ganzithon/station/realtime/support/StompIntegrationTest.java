@@ -36,13 +36,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 실시간 대기실 통합 테스트 공통: 실제 WebSocket(STOMP) 연결, 승차권 DB 삽입, 테스트 사이 정리.
  * 하위 클래스가 같은 설정을 써서 스프링 컨텍스트(와 Postgres 컨테이너)를 함께 씁니다.
- * 좌석 수는 2, 전광판 노출 시간은 300ms로 줄였습니다.
+ * 좌석 수는 2, 전광판 노출 시간은 300ms로 줄였고, 가상 승객 자동 방송은 껐습니다 (메시지가 끼어들지 않게).
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestPropertySource(properties = {
         "station.realtime.seat-count=2",
-        "station.realtime.broadcast-display=300ms"
+        "station.realtime.broadcast-display=300ms",
+        "station.virtual-passenger.enabled=false"
 })
 public abstract class StompIntegrationTest {
 
