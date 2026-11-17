@@ -87,6 +87,8 @@ const client = new Client({
 
 - 만료·위조된 계정 토큰이면 연결이 거부됩니다 (STOMP ERROR 후 종료). 토큰을 지우고 다시 연결하세요.
 - 연결 후 **`/user/queue/events`와 `/topic/rooms/{roomCode}`를 먼저 구독하고** 입장(join)을 보냅니다.
+- 보낼 수 있는 곳은 `/app/...`(아래 표)뿐이고, 구독할 수 있는 곳은 `/topic/rooms/{roomCode}`와 `/user/queue/events`뿐입니다. 다른 목적지로 보낸 SEND·SUBSCRIBE는 서버가 에러 없이 버립니다.
+- 방송 문장·호칭 같은 텍스트는 HTML로 넣지 말고 텍스트로만 그려 주세요 (`textContent`, Phaser Text).
 - 시각은 모두 epoch ms입니다 (`serverTs`, `startedTs`).
 
 ### 클라이언트 → 서버
