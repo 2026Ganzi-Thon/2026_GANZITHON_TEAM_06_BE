@@ -3,10 +3,12 @@ package com.ganzithon.station.ticket.controller;
 import com.ganzithon.station.global.response.ApiResponse;
 import com.ganzithon.station.global.security.CurrentUser;
 import com.ganzithon.station.global.security.Requester;
+import com.ganzithon.station.ticket.dto.request.TicketClaimRequest;
 import com.ganzithon.station.ticket.dto.request.TicketCreateRequest;
 import com.ganzithon.station.ticket.dto.request.TicketEndRequest;
 import com.ganzithon.station.ticket.dto.response.KnittingDeliverResponse;
 import com.ganzithon.station.ticket.dto.response.KnittingPatternChangeResponse;
+import com.ganzithon.station.ticket.dto.response.TicketClaimResponse;
 import com.ganzithon.station.ticket.dto.response.TicketCreateResponse;
 import com.ganzithon.station.ticket.dto.response.TicketEndResponse;
 import com.ganzithon.station.ticket.dto.response.TicketResponse;
@@ -106,6 +108,24 @@ public class TicketController {
             @CurrentUser Requester requester,
             @Valid @RequestBody TicketEndRequest request) {
         return ResponseEntity.ok(ApiResponse.success(ticketService.endTicket(ticketId, requester, request)));
+    }
+
+    @Operation(summary = "임시 조각을 계정으로 옮기기",
+            description = """
+                    비로그인으로 끝낸 기다림의 조각을 계정에 저장합니다 (MY-08). 가입·로그인 직후에 호출하세요.
+                    - 계정 토큰(Authorization)과 X-Guest-Token이 둘 다 필요합니다. 브라우저에 임시 보관한 조각의 ticketId만 보내면 되고,
+                      조각 내용은 서버의 기다림 기록으로 다시 만듭니다.
+                    - 응답의 조각들이 계정에 저장된 것이니, 이 ticketId들의 임시 조각은 브라우저에서 지우세요.
+                    - 하나라도 실패하면 전부 취소됩니다 (아무것도 옮겨지지 않음).
+                    - 로그인 안 했으면 401 AUTH_LOGIN_REQUIRED, X-Guest-Token이 없거나 ticketIds가 비었으면 400 COMMON_INVALID_INPUT,
+                      그 게스트 토큰의 기다림이 아니면 403 TICKET_FORBIDDEN, 없으면 404 TICKET_NOT_FOUND,
+                      아직 안 끝났으면 409 TICKET_NOT_ENDED, 이미 옮겼으면 409 TICKET_ALREADY_CLAIMED""")
+    @PostMapping("/claim")
+    public ResponseEntity<ApiResponse<TicketClaimResponse>> claimGuestTickets(
+            @CurrentUser Requester requester,
+            @Valid @RequestBody TicketClaimRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(ticketService.claimGuestTickets(
+                requester.requireUserId(), requester.guestToken(), request.ticketIds())));
     }
 
     @Operation(summary = "전광판 통계",

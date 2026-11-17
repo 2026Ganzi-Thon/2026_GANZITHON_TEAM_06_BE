@@ -1,6 +1,7 @@
 package com.ganzithon.station.ticket.service;
 
 import com.ganzithon.station.blanket.dto.request.BlanketPieceCreateRequest;
+import com.ganzithon.station.blanket.dto.response.BlanketPieceResponse;
 import com.ganzithon.station.blanket.service.BlanketService;
 import com.ganzithon.station.global.config.TrainProperties;
 import com.ganzithon.station.global.exception.BusinessException;
@@ -223,15 +224,55 @@ public class TicketService {
      * </ul>
      * <p>통과하면 user_id, claimed_at을 채우고, Ticket 기록으로 뒷면 값을 계산해 {@code blanketService.createPiece}를 호출합니다.
      * 브라우저가 보관한 조각 내용은 믿지 않습니다. 하나라도 실패하면 전부 취소합니다 (한 트랜잭션).</p>
+     * <ul>
+     *     <li>검증과 계정 연결은 조건부 UPDATE 한 번이라, 같은 승차권을 동시에 옮겨도 한 번만 성공합니다 (나머지는 TICKET_ALREADY_CLAIMED)</li>
+     *     <li>같은 ID가 여러 번 오면 한 번만 옮깁니다. 행 잠금 순서를 맞추려고 ID 오름차순으로 처리합니다 (동시 요청끼리 교착 방지)</li>
+     *     <li>열차 수는 종료 시각 기준이라, 종료 때 브라우저가 받은 조각과 같은 값이 나옵니다</li>
+     * </ul>
      *
      * @param userId     계정 토큰의 사용자 ({@code requester.requireUserId()})
      * @param guestToken X-Guest-Token. 없으면 AUTH_LOGIN_REQUIRED가 아니라 COMMON_INVALID_INPUT
      * @param ticketIds  옮길 승차권 ID 목록
+     * @throws BusinessException COMMON_INVALID_INPUT 게스트 토큰 없음, USER_NOT_FOUND, TICKET_NOT_FOUND, TICKET_FORBIDDEN,
+     *                           TICKET_NOT_ENDED, TICKET_ALREADY_CLAIMED
      */
     @Transactional
     public TicketClaimResponse claimGuestTickets(Long userId, String guestToken, List<Long> ticketIds) {
-        // TODO(환희)
-        throw new UnsupportedOperationException("TODO(환희): claimGuestTickets");
+        if (guestToken == null) {
+            throw new BusinessException(ErrorCode.COMMON_INVALID_INPUT);
+        }
+        User user = userService.getUserEntity(userId);
+        Instant claimedAt = now();
+
+        List<BlanketPieceResponse> pieces = ticketIds.stream().distinct().sorted()
+                .map(ticketId -> claimOne(ticketId, guestToken, user, claimedAt))
+                .toList();
+        return new TicketClaimResponse(pieces);
+    }
+
+    private BlanketPieceResponse claimOne(Long ticketId, String guestToken, User user, Instant claimedAt) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TICKET_NOT_FOUND));
+        if (!guestToken.equals(ticket.getGuestToken())) {
+            throw new BusinessException(ErrorCode.TICKET_FORBIDDEN);
+        }
+        if (ticket.isWaiting()) {
+            throw new BusinessException(ErrorCode.TICKET_NOT_ENDED);
+        }
+        // 위 확인을 통과했는데 0이면 그 사이(또는 이미) 다른 요청이 옮긴 것
+        if (ticket.getClaimedAt() != null
+                || ticketRepository.claimIfClaimable(ticketId, guestToken, user, claimedAt) == 0) {
+            throw new BusinessException(ErrorCode.TICKET_ALREADY_CLAIMED);
+        }
+
+        return blanketService.createPiece(new BlanketPieceCreateRequest(
+                ticket.getId(),
+                user.getId(),
+                ticket.getPattern().getId(),
+                ticket.getTicketNumber(),
+                ticket.getWaitingName(),
+                ticket.countPassedTrains(ticket.getEndedAt(), trainProperties.interval()),
+                ticket.getEndReason()));
     }
 
     // ── realtime용 (Controller에서 쓰지 않음) ──

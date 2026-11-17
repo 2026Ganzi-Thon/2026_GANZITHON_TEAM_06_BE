@@ -2,6 +2,7 @@ package com.ganzithon.station.ticket.repository;
 
 import com.ganzithon.station.ticket.entity.EndReason;
 import com.ganzithon.station.ticket.entity.Ticket;
+import com.ganzithon.station.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -32,6 +33,22 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     int endIfWaiting(@Param("ticketId") Long ticketId,
                      @Param("endReason") EndReason endReason,
                      @Param("endedAt") Instant endedAt);
+
+    /**
+     * 임시 조각을 계정으로 옮기기 (MY-08). 그 게스트 토큰 소유이고, 종료됐고, 아직 옮기지 않았을 때만 계정을 연결합니다.
+     * 바뀐 행 수를 돌려줍니다 (조건에 안 맞으면 0). 확인과 변경을 한 문장으로 해서, 같은 승차권을 동시에 옮겨도 한 번만 성공합니다.
+     */
+    @Modifying
+    @Query("""
+            update Ticket t
+            set t.user = :user, t.claimedAt = :claimedAt, t.updatedAt = :claimedAt
+            where t.id = :ticketId and t.guestToken = :guestToken
+              and t.status = com.ganzithon.station.ticket.entity.TicketStatus.ENDED and t.claimedAt is null
+            """)
+    int claimIfClaimable(@Param("ticketId") Long ticketId,
+                         @Param("guestToken") String guestToken,
+                         @Param("user") User user,
+                         @Param("claimedAt") Instant claimedAt);
 
     /**
      * 도안 바꾸기 (털실 톡톡). 진행 중이고 남은 털실이 있을 때만 털실 1올을 쓰고 도안을 바꾸고 전달 기록을 지웁니다.
