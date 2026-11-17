@@ -176,4 +176,42 @@ class TicketServiceTest {
                 .containsEntry("end_reason", "LET_GO")
                 .containsEntry("mood_chip", "CALM");
     }
+
+    @Test
+    void 같은_승차권을_동시에_계정으로_옮겨도_조각은_하나만_생긴다() throws Exception {
+        TicketCreateResponse ticket = ticketService.createTicket(
+                new Requester(null, null), new TicketCreateRequest("RESULT", null));
+        ticketService.endTicket(ticket.ticketId(), new Requester(null, ticket.guestToken()),
+                new TicketEndRequest(EndReason.ANSWERED));
+        Long userId = jdbcTemplate.queryForObject(
+                "insert into users (nickname, pin_hash) values (?, 'not-used') returning id", Long.class,
+                java.util.UUID.randomUUID().toString().substring(0, 12));
+
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<?>> futures = new ArrayList<>();
+        try (ExecutorService executor = Executors.newFixedThreadPool(CONCURRENT_REQUESTS)) {
+            for (int i = 0; i < CONCURRENT_REQUESTS; i++) {
+                futures.add(executor.submit(() -> {
+                    start.await();
+                    return ticketService.claimGuestTickets(userId, ticket.guestToken(), List.of(ticket.ticketId()));
+                }));
+            }
+            start.countDown();
+        }
+
+        int succeeded = 0;
+        List<ErrorCode> failures = new ArrayList<>();
+        for (Future<?> future : futures) {
+            try {
+                future.get();
+                succeeded++;
+            } catch (ExecutionException e) {
+                failures.add(((BusinessException) e.getCause()).getErrorCode());
+            }
+        }
+        assertThat(succeeded).isEqualTo(1);
+        assertThat(failures).hasSize(CONCURRENT_REQUESTS - 1).containsOnly(ErrorCode.TICKET_ALREADY_CLAIMED);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from blanket_pieces where ticket_id = ?",
+                Integer.class, ticket.ticketId())).isEqualTo(1);
+    }
 }

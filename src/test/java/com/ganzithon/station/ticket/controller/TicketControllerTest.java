@@ -254,6 +254,134 @@ class TicketControllerTest {
                 .andExpect(jsonPath("$.error.code").value("COMMON_INVALID_INPUT"));
     }
 
+    // ── 임시 조각을 계정으로 옮기기 ──
+
+    @Test
+    void 끝낸_게스트_기다림들을_계정으로_옮기면_서버_기록으로_조각이_저장된다() throws Exception {
+        ResultActions firstIssued = issue("{\"roomCode\": \"RESULT\"}");
+        String guestToken = guestToken(firstIssued);
+        Long first = ticketId(firstIssued);
+        Long second = ticketId(issue("{\"roomCode\": \"NO_REPLY\"}", guestToken));
+        startedSecondsAgo(first, 46);
+        String firstEnded = end(first, guestToken, "{\"endReason\": \"ANSWERED\"}")
+                .andReturn().getResponse().getContentAsString();
+        end(second, guestToken, "{\"endReason\": \"LET_GO\"}").andExpect(status().isOk());
+        Long userId = createUser();
+
+        claim(userId, guestToken, "{\"ticketIds\": [%d, %d]}".formatted(second, first))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.blanketPieces.length()").value(2))
+                .andExpect(jsonPath("$.data.blanketPieces[0].ticketId").value(first))
+                .andExpect(jsonPath("$.data.blanketPieces[0].blanketPieceId").isNumber())
+                .andExpect(jsonPath("$.data.blanketPieces[0].patternCode").value(
+                        (String) JsonPath.read(firstEnded, "$.data.patternCode")))
+                .andExpect(jsonPath("$.data.blanketPieces[0].ticketNumber").value(
+                        (int) JsonPath.read(firstEnded, "$.data.ticketNumber")))
+                .andExpect(jsonPath("$.data.blanketPieces[0].waitingName").value("결과발표"))
+                .andExpect(jsonPath("$.data.blanketPieces[0].trainCount").value(3))
+                .andExpect(jsonPath("$.data.blanketPieces[0].endReason").value("ANSWERED"))
+                .andExpect(jsonPath("$.data.blanketPieces[1].ticketId").value(second))
+                .andExpect(jsonPath("$.data.blanketPieces[1].endReason").value("LET_GO"));
+
+        for (Long ticketId : new Long[]{first, second}) {
+            assertThat(jdbcTemplate.queryForMap("select user_id, claimed_at from tickets where id = ?", ticketId))
+                    .containsEntry("user_id", userId)
+                    .extractingByKey("claimed_at").isNotNull();
+            assertThat(jdbcTemplate.queryForObject("select user_id from blanket_pieces where ticket_id = ?",
+                    Long.class, ticketId)).isEqualTo(userId);
+        }
+    }
+
+    @Test
+    void 하나라도_실패하면_아무것도_옮기지_않는다() throws Exception {
+        ResultActions endedIssued = issue("{\"roomCode\": \"RESULT\"}");
+        String guestToken = guestToken(endedIssued);
+        Long ended = ticketId(endedIssued);
+        end(ended, guestToken, "{\"endReason\": \"ANSWERED\"}").andExpect(status().isOk());
+        Long waiting = ticketId(issue("{\"roomCode\": \"RESULT\"}", guestToken));
+
+        claim(createUser(), guestToken, "{\"ticketIds\": [%d, %d]}".formatted(ended, waiting))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("TICKET_NOT_ENDED"));
+
+        assertThat(jdbcTemplate.queryForMap("select user_id, claimed_at from tickets where id = ?", ended))
+                .containsEntry("user_id", null)
+                .containsEntry("claimed_at", null);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from blanket_pieces where ticket_id = ?",
+                Integer.class, ended)).isZero();
+    }
+
+    @Test
+    void 이미_옮긴_기다림은_409이고_같은_ID를_여러_번_보내면_한_번만_옮긴다() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        end(ticketId, guestToken, "{\"endReason\": \"ANSWERED\"}").andExpect(status().isOk());
+        Long userId = createUser();
+
+        claim(userId, guestToken, "{\"ticketIds\": [%d, %d]}".formatted(ticketId, ticketId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.blanketPieces.length()").value(1));
+        claim(userId, guestToken, "{\"ticketIds\": [%d]}".formatted(ticketId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("TICKET_ALREADY_CLAIMED"));
+    }
+
+    @Test
+    void 다른_게스트_토큰의_기다림이면_403_없으면_404() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        end(ticketId, guestToken(issued), "{\"endReason\": \"ANSWERED\"}").andExpect(status().isOk());
+        String otherGuestToken = guestToken(issue("{\"roomCode\": \"RESULT\"}"));
+        Long userId = createUser();
+
+        claim(userId, otherGuestToken, "{\"ticketIds\": [%d]}".formatted(ticketId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("TICKET_FORBIDDEN"));
+        claim(userId, otherGuestToken, "{\"ticketIds\": [%d]}".formatted(Long.MAX_VALUE))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("TICKET_NOT_FOUND"));
+    }
+
+    @Test
+    void 옮기기는_계정_토큰과_게스트_토큰이_둘_다_필요하다() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        end(ticketId, guestToken, "{\"endReason\": \"ANSWERED\"}").andExpect(status().isOk());
+        String body = "{\"ticketIds\": [%d]}".formatted(ticketId);
+
+        mockMvc.perform(post("/api/v1/tickets/claim")
+                        .header(GuestTokenHeader.NAME, guestToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("AUTH_LOGIN_REQUIRED"));
+        mockMvc.perform(post("/api/v1/tickets/claim")
+                        .header("Authorization", "Bearer " + accountTokenProvider.issue(createUser()).accessToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("COMMON_INVALID_INPUT"));
+    }
+
+    @Test
+    void 옮길_승차권_목록이_비었으면_400() throws Exception {
+        String guestToken = guestToken(issue("{\"roomCode\": \"RESULT\"}"));
+
+        claim(createUser(), guestToken, "{\"ticketIds\": []}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("COMMON_INVALID_INPUT"));
+    }
+
+    private ResultActions claim(Long userId, String guestToken, String json) throws Exception {
+        return mockMvc.perform(post("/api/v1/tickets/claim")
+                .header("Authorization", "Bearer " + accountTokenProvider.issue(userId).accessToken())
+                .header(GuestTokenHeader.NAME, guestToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json));
+    }
+
     // ── 전광판 통계 ──
 
     @Test
