@@ -21,6 +21,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -29,8 +30,11 @@ import java.time.Instant;
  * 승차권 = 기다림 한 건. 로그인 발급이면 user, 비로그인 발급이면 guestToken으로 소유자를 구분합니다.
  * 지나간 열차 수와 받은 털실 수는 저장하지 않고 startedAt으로 계산합니다.
  * 남은 털실 = 지나간 열차 수 - yarnSpent
+ * <p>{@code @DynamicUpdate}: 바뀐 컬럼만 UPDATE합니다. 종료·도안 바꾸기는 조건부 UPDATE 쿼리로 하는데,
+ * 같은 때 엔티티로 다른 값(방송 칩, 전달 시각)을 고치면 전체 컬럼 UPDATE가 status·yarn_spent를 옛 값으로 덮어쓰기 때문입니다.</p>
  */
 @Entity
+@DynamicUpdate
 @Table(name = "tickets")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
