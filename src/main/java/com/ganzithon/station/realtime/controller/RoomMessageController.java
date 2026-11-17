@@ -5,9 +5,11 @@ import com.ganzithon.station.global.exception.ErrorCode;
 import com.ganzithon.station.global.security.StompAuthChannelInterceptor;
 import com.ganzithon.station.realtime.message.BroadcastRequest;
 import com.ganzithon.station.realtime.message.ErrorMessage;
+import com.ganzithon.station.realtime.message.ReactionRequest;
 import com.ganzithon.station.realtime.message.RoomJoinRequest;
 import com.ganzithon.station.realtime.messaging.RoomMessenger;
 import com.ganzithon.station.realtime.service.BroadcastService;
+import com.ganzithon.station.realtime.service.ReactionService;
 import com.ganzithon.station.realtime.service.RoomPresenceService;
 import com.ganzithon.station.realtime.service.RoomPresenceService.JoinOutcome;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,7 @@ public class RoomMessageController {
 
     private final RoomPresenceService roomPresenceService;
     private final BroadcastService broadcastService;
+    private final ReactionService reactionService;
     private final RoomMessenger roomMessenger;
 
     /** 입장 (ON-05). 순서: (이전 방 LEAVE) → 나에게 ROOM_STATE → 방에 JOIN */
@@ -50,6 +53,13 @@ public class RoomMessageController {
                           SimpMessageHeaderAccessor headers) {
         String sessionId = headers.getSessionId();
         roomMessenger.toSession(sessionId, broadcastService.submit(roomCode, sessionId, request));
+    }
+
+    /** 1초 리액션 (BR-03). 방에 바로 REACTION. 연타·지난 방송이면 아무것도 보내지 않음 */
+    @MessageMapping("/rooms/{roomCode}/reaction")
+    public void reaction(@DestinationVariable String roomCode, @Payload ReactionRequest request,
+                         SimpMessageHeaderAccessor headers) {
+        reactionService.react(roomCode, headers.getSessionId(), request).ifPresent(roomMessenger::toRoom);
     }
 
     @MessageExceptionHandler(BusinessException.class)

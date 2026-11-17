@@ -1,15 +1,19 @@
 package com.ganzithon.station.realtime.store;
 
 import com.ganzithon.station.global.config.RealtimeProperties;
+import com.ganzithon.station.realtime.message.Reaction;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * 방송 대기열(방별)과 쿨다운(승차권별). 메모리만 씁니다.
@@ -22,6 +26,8 @@ public class BroadcastStore {
     private final Map<String, Deque<QueuedBroadcast>> queues = new HashMap<>();
     /** roomCode → 마지막 송출 시각 */
     private final Map<String, Long> lastDispatchedAt = new HashMap<>();
+    /** roomCode → 지금 전광판에 나온 방송의 리액션 수. 다음 방송이 나가면 새로 셉니다 */
+    private final Map<String, ReactionTally> onAirReactions = new HashMap<>();
     /** ticketId → 마지막 방송 시각. 재접속해도 쿨다운을 피할 수 없게 세션이 아니라 승차권 기준 */
     private final Map<Long, Long> lastBroadcastAt = new HashMap<>();
 
@@ -80,8 +86,10 @@ public class BroadcastStore {
             if (last != null && now - last < displayMs) {
                 continue;
             }
-            due.add(entry.getValue().pollFirst());
+            QueuedBroadcast broadcast = entry.getValue().pollFirst();
+            due.add(broadcast);
             lastDispatchedAt.put(entry.getKey(), now);
+            onAirReactions.put(entry.getKey(), new ReactionTally(broadcast.broadcastId()));
             if (entry.getValue().isEmpty()) {
                 iterator.remove();
             }
@@ -90,11 +98,53 @@ public class BroadcastStore {
         return due;
     }
 
+    /** 이 방송이 지금 그 방 전광판에 나오고 있는지 (송출 후 노출 시간 안) */
+    public synchronized boolean isOnAir(String roomCode, String broadcastId, long now) {
+        Long dispatchedAt = lastDispatchedAt.get(roomCode);
+        ReactionTally tally = onAirReactions.get(roomCode);
+        return tally != null && tally.broadcastId.equals(broadcastId)
+                && dispatchedAt != null && now - dispatchedAt < displayMs;
+    }
+
+    /**
+     * 전광판 방송에 리액션을 셉니다. 한 방송에 승객 한 명당 리액션 종류마다 한 번만 셉니다 (연타로 숫자가 부풀지 않게).
+     *
+     * @return 센 뒤의 그 방송 리액션 수. 지금 나오는 방송이 아니면 empty
+     */
+    public synchronized Optional<ReactionCounts> countReaction(String roomCode, String broadcastId, Long ticketId,
+                                                               Reaction reaction, long now) {
+        if (!isOnAir(roomCode, broadcastId, now)) {
+            return Optional.empty();
+        }
+        ReactionTally tally = onAirReactions.get(roomCode);
+        (reaction == Reaction.NOD ? tally.nodded : tally.awwed).add(ticketId);
+        return Optional.of(new ReactionCounts(tally.nodded.size(), tally.awwed.size()));
+    }
+
     public long getCooldownMs() {
         return cooldownMs;
     }
 
     public long getDisplayMs() {
         return displayMs;
+    }
+
+    /**
+     * 전광판 방송 하나의 리액션 수.
+     *
+     * @param nodCount 끄덕임한 승객 수
+     * @param awwCount 짠함한 승객 수
+     */
+    public record ReactionCounts(int nodCount, int awwCount) {
+    }
+
+    private static final class ReactionTally {
+        private final String broadcastId;
+        private final Set<Long> nodded = new HashSet<>();
+        private final Set<Long> awwed = new HashSet<>();
+
+        private ReactionTally(String broadcastId) {
+            this.broadcastId = broadcastId;
+        }
     }
 }
