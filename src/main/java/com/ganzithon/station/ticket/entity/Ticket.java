@@ -163,14 +163,23 @@ public class Ticket extends BaseTimeEntity {
     }
 
     /**
-     * 지나간 열차 수 (TR-04) = 받은 털실 수 (TR-02). 저장하지 않고 시작 시각으로 계산합니다.
-     * 열차 간격(interval)마다 1대씩 지나가고, 남는 시간은 버립니다.
+     * 지나간 열차 수 (TR-04) = 받은 털실 수 (TR-02). 저장하지 않고 계산합니다.
+     * <p>열차는 모든 대기실·승객이 같은 <b>공용 시각표</b>로 지나갑니다: epoch(1970-01-01T00:00Z)부터 interval마다 1대
+     * (30분 간격이면 매시 00분·30분). 그래서 같은 방 사람들이 같은 열차를 같이 봅니다.
+     * 이 승차권의 열차 수 = 시작 시각 뒤부터 until까지 지나간 공용 열차 수 (시작 순간에 지나간 열차는 세지 않음).</p>
      *
      * @param until 계산 기준 시각. 진행 중이면 지금, 끝났으면 종료 시각
      */
     public int countPassedTrains(Instant until, Duration interval) {
-        long elapsedMs = Duration.between(startedAt, until).toMillis();
-        return elapsedMs <= 0 ? 0 : (int) (elapsedMs / interval.toMillis());
+        long intervalMs = interval.toMillis();
+        long passed = Math.floorDiv(until.toEpochMilli(), intervalMs) - Math.floorDiv(startedAt.toEpochMilli(), intervalMs);
+        return (int) Math.max(0, passed);
+    }
+
+    /** 공용 시각표에서 now 다음에 지나갈 열차 시각 (모든 승객이 같음) */
+    public static Instant nextTrainAt(Instant now, Duration interval) {
+        long intervalMs = interval.toMillis();
+        return Instant.ofEpochMilli((Math.floorDiv(now.toEpochMilli(), intervalMs) + 1) * intervalMs);
     }
 
     /**

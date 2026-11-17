@@ -37,8 +37,12 @@ public record TicketCreateResponse(
                 example = "2026-11-16T21:30:00+09:00")
         Instant serverTime,
 
-        @Schema(description = "열차 간격(ms). 지나간 열차 수 = 경과 시간 ÷ 이 값 (털실 수도 같음)", example = "15000")
-        long trainIntervalMs
+        @Schema(description = "열차 간격(ms). 열차는 모든 승객이 같은 시각표로 지나갑니다: epoch부터 이 값마다 1대 "
+                + "(30분이면 매시 00분·30분). 내 열차 수(= 털실 수) = 시작 뒤에 지나간 열차 수", example = "1800000")
+        long trainIntervalMs,
+
+        @Schema(description = "다음 열차가 지나갈 시각 (모든 승객이 같음). 이후는 trainIntervalMs마다", example = "2026-11-16T22:00:00+09:00")
+        Instant nextTrainAt
 ) {
     public static TicketCreateResponse of(Ticket ticket, Instant serverTime, Duration trainInterval) {
         return new TicketCreateResponse(
@@ -51,6 +55,7 @@ public record TicketCreateResponse(
                 ticket.getGuestToken(),
                 ticket.getStartedAt(),
                 serverTime,
-                trainInterval.toMillis());
+                trainInterval.toMillis(),
+                Ticket.nextTrainAt(serverTime, trainInterval));
     }
 }

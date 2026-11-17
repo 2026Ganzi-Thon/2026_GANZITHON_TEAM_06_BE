@@ -47,8 +47,11 @@ public record TicketResponse(
                 example = "2026-11-17T21:33:00+09:00")
         Instant serverTime,
 
-        @Schema(description = "열차 간격(ms). 지나간 열차 수 = 경과 시간 ÷ 이 값", example = "15000")
+        @Schema(description = "열차 간격(ms). 모든 승객이 같은 시각표: epoch부터 이 값마다 1대 (30분이면 매시 00분·30분)", example = "1800000")
         long trainIntervalMs,
+
+        @Schema(description = "다음 열차가 지나갈 시각 (모든 승객이 같음)", example = "2026-11-17T22:00:00+09:00")
+        Instant nextTrainAt,
 
         @Schema(description = "지금까지 지나간 열차 수 (= 받은 털실 수). 끝났으면 종료 시각 기준", example = "12")
         int trainCount,
@@ -75,6 +78,7 @@ public record TicketResponse(
                 ticket.getEndedAt(),
                 serverTime,
                 trainInterval.toMillis(),
+                Ticket.nextTrainAt(serverTime, trainInterval),
                 ticket.countPassedTrains(until, trainInterval),
                 ticket.countRemainingYarn(until, trainInterval),
                 ticket.getKnittingDeliveredAt());
