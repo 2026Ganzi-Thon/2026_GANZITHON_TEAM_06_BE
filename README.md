@@ -101,7 +101,7 @@ const client = new Client({
 
 | type | 받는 곳 | 필드 | 언제 |
 |---|---|---|---|
-| `ROOM_STATE` | `/user/queue/events` | `roomCode`, `myTicketNumber`, `seatCount`, `passengers[]`, `serverTs` | 입장 직후 나에게만. 이 메시지로 화면을 처음 그립니다 |
+| `ROOM_STATE` | `/user/queue/events` | `roomCode`, `myTicketNumber`, `seatCount`, `passengers[]`, `onAirBroadcast`, `serverTs` | 입장 직후 나에게만. 이 메시지로 화면을 처음 그립니다. `onAirBroadcast`가 있으면 전광판에 그 방송을 `remainingMs` 동안 보여 주세요 (방송 도중 입장·새로고침) |
 | `JOIN` | `/topic/rooms/{roomCode}` | `passenger`, `count`, `serverTs` | 새 승객 입장 (나 포함). 같은 승차권으로 다시 접속하면 오지 않습니다 |
 | `LEAVE` | `/topic/rooms/{roomCode}` | `ticketNumber`, `seatNumber`, `count`, `serverTs` | 승객 퇴장 (연결 끊김, 다른 방으로 이동, 기다림 종료). `seatNumber`는 비워진 좌석, 서 있던 승객이면 null |
 | `BROADCAST_ACCEPTED` | `/user/queue/events` | `broadcastId`, `queuePosition`, `cooldownMs`, `displayName`, `serverTs` | 방송 요청이 대기열에 들어감. `cooldownMs` 동안 방송 버튼을 막아 주세요 |
@@ -118,6 +118,16 @@ const client = new Client({
 | `moodChip` | 상태 칩. 없으면 null |
 | `seatNumber` | 좌석 번호 (1부터). 자리가 다 차서 서서 기다리면 null (좌석 수: 환경변수 `SEAT_COUNT`, 기본 20) |
 | `startedTs` | 기다림 시작 시각. 머문 시간 계산용 |
+
+`onAirBroadcast` (지금 전광판에 나와 있는 방송, 없으면 null)
+
+| 필드 | 설명 |
+|---|---|
+| `broadcastId`, `ticketNumber`, `displayName`, `moodChip`, `situationChipCode`, `situationChipLabel`, `sentence` | `BROADCAST`와 같음 |
+| `remainingMs` | 전광판에 남은 노출 시간. 지나면 기본 안내 문구로 돌아갑니다 |
+| `nodCount`, `awwCount` | 지금까지의 리액션 수 (`REACTION`과 같은 기준) |
+
+null이면 전광판에 기본 안내 문구를 보여 주세요: 방송을 한 번도 안 한 방, 마지막 방송의 노출 시간이 끝난 방, 서버 재시작 직후.
 
 `sentence` 예: `안내 말씀 드립니다. 104번 두근두근한 양님은 지금 '답장 기다리는 중'입니다.`
 
