@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -449,6 +450,82 @@ class TicketControllerTest {
         getTicket(ticketId, otherGuestToken)
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("TICKET_FORBIDDEN"));
+    }
+
+    // ── 상태 칩 바꾸기 (온보딩) ──
+
+    @Test
+    void 상태_칩을_바꾸면_번호와_도안은_그대로이고_호칭이_바뀐다() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\", \"moodChip\": \"FLUTTERING\"}");
+        Long ticketId = ticketId(issued);
+        int ticketNumber = ticketNumber(issued);
+        String patternCode = JsonPath.read(issued.andReturn().getResponse().getContentAsString(), "$.data.patternCode");
+
+        changeMoodChip(ticketId, guestToken(issued), "{\"moodChip\": \"TIRED\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.ticketId").value(ticketId))
+                .andExpect(jsonPath("$.data.ticketNumber").value(ticketNumber))
+                .andExpect(jsonPath("$.data.patternCode").value(patternCode))
+                .andExpect(jsonPath("$.data.moodChip").value("TIRED"))
+                .andExpect(jsonPath("$.data.displayName").value(ticketNumber + "번 지친 양"))
+                .andExpect(jsonPath("$.data.status").value("WAITING"));
+
+        assertThat(jdbcTemplate.queryForObject("select mood_chip from tickets where id = ?", String.class, ticketId))
+                .isEqualTo("TIRED");
+    }
+
+    @Test
+    void 상태_칩을_null로_보내거나_빼면_칩_없이_번호와_양만() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\", \"moodChip\": \"CALM\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        int ticketNumber = ticketNumber(issued);
+
+        changeMoodChip(ticketId, guestToken, "{\"moodChip\": null}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.moodChip").value(nullValue()))
+                .andExpect(jsonPath("$.data.displayName").value(ticketNumber + "번 양"));
+
+        changeMoodChip(ticketId, guestToken, "{\"moodChip\": \"CALM\"}").andExpect(status().isOk());
+        changeMoodChip(ticketId, guestToken, "{}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.moodChip").value(nullValue()));
+    }
+
+    @Test
+    void 끝난_기다림의_상태_칩은_바꿀_수_없다() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        end(ticketId, guestToken, "{\"endReason\": \"LET_GO\"}").andExpect(status().isOk());
+
+        changeMoodChip(ticketId, guestToken, "{\"moodChip\": \"TIRED\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("TICKET_ALREADY_ENDED"));
+    }
+
+    @Test
+    void 남의_승차권이면_403_없으면_404_목록에_없는_칩이면_400() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String otherGuestToken = guestToken(issue("{\"roomCode\": \"RESULT\"}"));
+
+        changeMoodChip(ticketId, otherGuestToken, "{\"moodChip\": \"TIRED\"}")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("TICKET_FORBIDDEN"));
+        changeMoodChip(Long.MAX_VALUE, otherGuestToken, "{\"moodChip\": \"TIRED\"}")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("TICKET_NOT_FOUND"));
+        changeMoodChip(ticketId, guestToken(issued), "{\"moodChip\": \"HAPPY\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("COMMON_INVALID_INPUT"));
+    }
+
+    private ResultActions changeMoodChip(Long ticketId, String guestToken, String json) throws Exception {
+        return mockMvc.perform(patch("/api/v1/tickets/{ticketId}", ticketId)
+                .header(GuestTokenHeader.NAME, guestToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json));
     }
 
     // ── 털실 톡톡 ──
