@@ -12,6 +12,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -23,6 +24,9 @@ import java.time.Instant;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User extends BaseTimeEntity {
+
+    private static final int MAX_LOGIN_FAIL_COUNT = 5;
+    private static final Duration LOGIN_LOCK_DURATION = Duration.ofMinutes(5);
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -52,5 +56,31 @@ public class User extends BaseTimeEntity {
         this.pinHash = pinHash;
         this.isPublic = false;
         this.pinFailCount = 0;
+    }
+
+    /** now 기준으로 아직 로그인 잠금 중인지 */
+    public boolean isLocked(Instant now) {
+        return lockedUntil != null && now.isBefore(lockedUntil);
+    }
+
+    /**
+     * 로그인 실패를 기록합니다. 잠금이 걸려 있다가 now 기준 이미 풀렸으면 실패 횟수를 1부터 다시 셉니다.
+     * 누적 실패가 {@value #MAX_LOGIN_FAIL_COUNT}회가 되면 now로부터 {@value #LOGIN_LOCK_DURATION}만큼 잠급니다.
+     */
+    public void recordLoginFailure(Instant now) {
+        if (lockedUntil != null && !now.isBefore(lockedUntil)) {
+            pinFailCount = 0;
+            lockedUntil = null;
+        }
+        pinFailCount++;
+        if (pinFailCount >= MAX_LOGIN_FAIL_COUNT) {
+            lockedUntil = now.plus(LOGIN_LOCK_DURATION);
+        }
+    }
+
+    /** 로그인 성공 시 실패 횟수와 잠금을 초기화합니다. */
+    public void resetLoginFailure() {
+        pinFailCount = 0;
+        lockedUntil = null;
     }
 }
