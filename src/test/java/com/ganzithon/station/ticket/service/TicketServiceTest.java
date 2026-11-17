@@ -1,34 +1,33 @@
 package com.ganzithon.station.ticket.service;
 
 import com.ganzithon.station.TestcontainersConfiguration;
+import com.ganzithon.station.global.exception.BusinessException;
+import com.ganzithon.station.global.exception.ErrorCode;
 import com.ganzithon.station.global.security.Requester;
-import com.ganzithon.station.room.entity.Pattern;
-import com.ganzithon.station.room.service.RoomService;
 import com.ganzithon.station.ticket.dto.request.TicketCreateRequest;
+import com.ganzithon.station.ticket.dto.request.TicketEndRequest;
 import com.ganzithon.station.ticket.dto.response.TicketCreateResponse;
-import com.ganzithon.station.user.service.UserService;
-import jakarta.persistence.EntityManager;
-import org.junit.jupiter.api.BeforeEach;
+import com.ganzithon.station.ticket.entity.EndReason;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.doAnswer;
 
 /**
- * 승차권 번호 동시 발급. 같은 대기실에 여러 명이 동시에 발급받아도 번호가 겹치거나 빠지지 않아야 합니다.
- * 아직 구현 전인 RoomService.getRandomPattern(하빈)은 이 테스트에서만 대신합니다.
+ * 동시 요청. 같은 대기실에 여러 명이 동시에 발급받아도 번호가 겹치거나 빠지지 않고,
+ * 같은 승차권을 동시에 종료해도 한 번만 성공해야 합니다.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -38,25 +37,6 @@ class TicketServiceTest {
 
     @Autowired
     TicketService ticketService;
-
-    @Autowired
-    JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    EntityManager entityManager;
-
-    @MockitoSpyBean
-    RoomService roomService;
-
-    @MockitoSpyBean
-    UserService userService;
-
-    @BeforeEach
-    void stubOtherDomainTodos() {
-        Long patternId = jdbcTemplate.queryForObject("select id from patterns where code = 'PATTERN_01'", Long.class);
-        doAnswer(invocation -> entityManager.getReference(Pattern.class, patternId))
-                .when(roomService).getRandomPattern();
-    }
 
     @Test
     void 동시에_발급해도_번호가_겹치거나_빠지지_않는다() throws Exception {
@@ -81,5 +61,39 @@ class TicketServiceTest {
         int first = numbers.getFirst();
         assertThat(numbers).containsExactlyElementsOf(
                 IntStream.range(first, first + CONCURRENT_REQUESTS).boxed().toList());
+    }
+
+    @Test
+    void 같은_승차권을_동시에_종료해도_한_번만_성공하고_통계도_한_번만_오른다() throws Exception {
+        TicketCreateResponse ticket = ticketService.createTicket(
+                new Requester(null, null), new TicketCreateRequest("RESULT", null));
+        Requester owner = new Requester(null, ticket.guestToken());
+        long answeredBefore = ticketService.getStats().answeredCount();
+
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<?>> futures = new ArrayList<>();
+        try (ExecutorService executor = Executors.newFixedThreadPool(CONCURRENT_REQUESTS)) {
+            for (int i = 0; i < CONCURRENT_REQUESTS; i++) {
+                futures.add(executor.submit(() -> {
+                    start.await();
+                    return ticketService.endTicket(ticket.ticketId(), owner, new TicketEndRequest(EndReason.ANSWERED));
+                }));
+            }
+            start.countDown();
+        }
+
+        int succeeded = 0;
+        List<ErrorCode> failures = new ArrayList<>();
+        for (Future<?> future : futures) {
+            try {
+                future.get();
+                succeeded++;
+            } catch (ExecutionException e) {
+                failures.add(((BusinessException) e.getCause()).getErrorCode());
+            }
+        }
+        assertThat(succeeded).isEqualTo(1);
+        assertThat(failures).hasSize(CONCURRENT_REQUESTS - 1).containsOnly(ErrorCode.TICKET_ALREADY_ENDED);
+        assertThat(ticketService.getStats().answeredCount()).isEqualTo(answeredBefore + 1);
     }
 }
