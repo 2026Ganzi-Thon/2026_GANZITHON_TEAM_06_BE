@@ -4,6 +4,7 @@ import com.ganzithon.station.global.response.ApiResponse;
 import com.ganzithon.station.global.security.CurrentUser;
 import com.ganzithon.station.global.security.Requester;
 import com.ganzithon.station.user.dto.request.UserLoginRequest;
+import com.ganzithon.station.user.dto.request.UserPublicSettingUpdateRequest;
 import com.ganzithon.station.user.dto.request.UserSignupRequest;
 import com.ganzithon.station.user.dto.response.UserAuthResponse;
 import com.ganzithon.station.user.dto.response.UserMeResponse;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -54,5 +56,15 @@ public class UserController {
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserMeResponse>> getMe(@CurrentUser Requester requester) {
         return ResponseEntity.ok(ApiResponse.success(userService.getMe(requester.requireUserId())));
+    }
+
+    @Operation(summary = "공개 설정 변경",
+            description = "담요 대기실 공개 여부를 바꿉니다. 계정 토큰이 필요합니다.")
+    @PatchMapping("/me")
+    public ResponseEntity<ApiResponse<UserMeResponse>> updatePublicSetting(
+            @CurrentUser Requester requester,
+            @Valid @RequestBody UserPublicSettingUpdateRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                userService.updatePublicSetting(requester.requireUserId(), request)));
     }
 }

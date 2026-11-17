@@ -83,4 +83,9 @@ public class User extends BaseTimeEntity {
         pinFailCount = 0;
         lockedUntil = null;
     }
+
+    /** 담요 대기실 공개 여부를 바꿉니다. */
+    public void updatePublic(boolean isPublic) {
+        this.isPublic = isPublic;
+    }
 }
