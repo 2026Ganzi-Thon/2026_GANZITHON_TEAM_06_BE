@@ -4,6 +4,7 @@ import com.ganzithon.station.global.exception.BusinessException;
 import com.ganzithon.station.global.exception.ErrorCode;
 import com.ganzithon.station.global.security.AccountTokenProvider;
 import com.ganzithon.station.user.dto.request.UserLoginRequest;
+import com.ganzithon.station.user.dto.request.UserPublicSettingUpdateRequest;
 import com.ganzithon.station.user.dto.request.UserSignupRequest;
 import com.ganzithon.station.user.dto.response.UserAuthResponse;
 import com.ganzithon.station.user.dto.response.UserMeResponse;
@@ -72,6 +73,14 @@ public class UserService {
     /** 내 정보 (닉네임, 공개 여부). */
     public UserMeResponse getMe(Long userId) {
         User user = getUserEntity(userId);
+        return UserMeResponse.of(user.getNickname(), user.isPublic());
+    }
+
+    /** 담요 대기실 공개 설정 변경. */
+    @Transactional
+    public UserMeResponse updatePublicSetting(Long userId, UserPublicSettingUpdateRequest request) {
+        User user = getUserEntity(userId);
+        user.updatePublic(request.isPublic());
         return UserMeResponse.of(user.getNickname(), user.isPublic());
     }
 

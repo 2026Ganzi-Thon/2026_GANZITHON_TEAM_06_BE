@@ -5,6 +5,8 @@ import com.ganzithon.station.global.exception.ErrorCode;
 import com.ganzithon.station.global.security.AccountToken;
 import com.ganzithon.station.global.security.AccountTokenProvider;
 import com.ganzithon.station.user.dto.request.UserLoginRequest;
+import com.ganzithon.station.user.dto.request.UserPublicSettingUpdateRequest;
+import com.ganzithon.station.user.dto.response.UserMeResponse;
 import com.ganzithon.station.user.entity.User;
 import com.ganzithon.station.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -101,5 +103,25 @@ class UserServiceTest {
         userService.login(new UserLoginRequest("몽실이", "1234"));
 
         assertThat(user.getPinFailCount()).isEqualTo(0);
+    }
+
+    @Test
+    void 공개_설정을_바꾸면_반영된_내_정보를_반환() {
+        User user = User.builder().nickname("몽실이").pinHash("hashed").build();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        UserMeResponse response = userService.updatePublicSetting(1L, new UserPublicSettingUpdateRequest(true));
+
+        assertThat(user.isPublic()).isTrue();
+        assertThat(response).isEqualTo(new UserMeResponse("몽실이", true));
+    }
+
+    @Test
+    void 공개_설정_변경_시_없는_계정이면_USER_NOT_FOUND() {
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.updatePublicSetting(1L, new UserPublicSettingUpdateRequest(true)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
     }
 }
