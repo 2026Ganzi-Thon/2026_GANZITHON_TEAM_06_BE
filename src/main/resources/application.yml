@@ -71,8 +71,8 @@ station:
     # 로컬 전용 값. 배포에서는 절대 쓰지 않습니다.
     secret: ${JWT_SECRET:local-only-secret-change-me-0123456789abcdef}
   train:
-    # 1시간을 몇 초로 줄일지. 15초 → 15초마다 열차 1대 = 털실 1올
-    interval-seconds: ${TRAIN_INTERVAL_SECONDS:15}
+    # 열차 간격(초). 열차 1대 = 털실 1올. 실제 서비스 30분(1800), 시연 영상 20초. 로컬 기본은 20
+    interval-seconds: ${TRAIN_INTERVAL_SECONDS:20}
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS:http://localhost:*}
 
