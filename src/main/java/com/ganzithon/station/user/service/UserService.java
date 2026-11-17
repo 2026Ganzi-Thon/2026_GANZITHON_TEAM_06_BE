@@ -1,7 +1,9 @@
 package com.ganzithon.station.user.service;
 
 import com.ganzithon.station.global.exception.BusinessException;
+import com.ganzithon.station.global.exception.ErrorCode;
 import com.ganzithon.station.user.entity.User;
+import com.ganzithon.station.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class UserService {
 
+    private final UserRepository userRepository;
+
     // ── 다른 도메인 Service용 (Controller에서 쓰지 않음) ──
 
     /**
@@ -26,7 +30,7 @@ public class UserService {
      * @throws BusinessException USER_NOT_FOUND 없는 계정
      */
     public User getUserEntity(Long userId) {
-        // TODO(상진): UserRepository.findById(userId).orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
-        throw new UnsupportedOperationException("TODO(상진): getUserEntity");
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
     }
 }
