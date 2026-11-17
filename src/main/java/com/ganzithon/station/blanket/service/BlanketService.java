@@ -1,6 +1,8 @@
 package com.ganzithon.station.blanket.service;
 
 import com.ganzithon.station.blanket.dto.request.BlanketPieceCreateRequest;
+import com.ganzithon.station.blanket.dto.response.BlanketPieceListItem;
+import com.ganzithon.station.blanket.dto.response.BlanketPieceListResponse;
 import com.ganzithon.station.blanket.dto.response.BlanketPieceResponse;
 import com.ganzithon.station.blanket.dto.response.PublicCardResponse;
 import com.ganzithon.station.blanket.dto.response.PublicCardStatus;
@@ -39,6 +41,32 @@ public class BlanketService {
     private final UserService userService;
     private final BlanketPieceRepository blanketPieceRepository;
     private final EntityManager entityManager;
+
+    // ── API용 (BlanketPieceController) ──
+
+    /**
+     * 내 담요 조각 목록. GET /api/v1/blanket-pieces
+     * 최신 순(만든 시각 내림차순, 같은 시각이면 ID 내림차순)으로 최대 {@link #MAX_VISIBLE_PIECE_COUNT}개.
+     */
+    public BlanketPieceListResponse getBlanketPieceList(Long userId) {
+        List<BlanketPiece> pieces = blanketPieceRepository.findByUserIdOrderByCreatedAtDescIdDesc(
+                userId, PageRequest.of(0, MAX_VISIBLE_PIECE_COUNT));
+        return new BlanketPieceListResponse(pieces.stream().map(BlanketPieceListItem::from).toList());
+    }
+
+    /**
+     * 내 담요 조각 상세. GET /api/v1/blanket-pieces/{pieceId}
+     *
+     * @throws BusinessException BLANKET_PIECE_NOT_FOUND 없는 조각, BLANKET_PIECE_FORBIDDEN 남의 조각
+     */
+    public BlanketPieceResponse getBlanketPiece(Long pieceId, Long userId) {
+        BlanketPiece piece = blanketPieceRepository.findById(pieceId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.BLANKET_PIECE_NOT_FOUND));
+        if (!piece.getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.BLANKET_PIECE_FORBIDDEN);
+        }
+        return BlanketPieceResponse.from(piece);
+    }
 
     // ── 다른 도메인 Service용 (Controller에서 쓰지 않음) ──
 

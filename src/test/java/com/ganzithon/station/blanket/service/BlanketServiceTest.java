@@ -13,6 +13,7 @@ import com.ganzithon.station.user.entity.User;
 import com.ganzithon.station.user.service.UserService;
 import jakarta.persistence.EntityManager;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -52,6 +53,19 @@ class BlanketServiceTest {
                 .extracting("errorCode").isEqualTo(ErrorCode.BLANKET_PIECE_ALREADY_EXISTS);
 
         verifyNoInteractions(userService, entityManager);
+    }
+
+    @Test
+    void 다른_사용자의_조각에_접근하면_BLANKET_PIECE_FORBIDDEN() {
+        BlanketPiece piece = mock(BlanketPiece.class);
+        User owner = mock(User.class);
+        when(owner.getId()).thenReturn(1L);
+        when(piece.getUser()).thenReturn(owner);
+        when(blanketPieceRepository.findById(10L)).thenReturn(Optional.of(piece));
+
+        assertThatThrownBy(() -> blanketService.getBlanketPiece(10L, 2L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.BLANKET_PIECE_FORBIDDEN);
     }
 
     @Test
