@@ -419,10 +419,20 @@ class TicketControllerTest {
     }
 
     @Test
-    void 털실을_한_올도_못_받았으면_전달은_409() throws Exception {
+    void 남은_털실이_없으면_전달은_409() throws Exception {
         ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
 
-        deliver(ticketId(issued), guestToken(issued))
+        // 열차가 아직 안 지나감
+        deliver(ticketId, guestToken)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("KNITTING_NOT_ENOUGH_YARN"));
+
+        // 받은 1올을 도안 바꾸기에 다 씀
+        startedSecondsAgo(ticketId, 16);
+        changePattern(ticketId, guestToken).andExpect(status().isOk());
+        deliver(ticketId, guestToken)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("KNITTING_NOT_ENOUGH_YARN"));
     }
