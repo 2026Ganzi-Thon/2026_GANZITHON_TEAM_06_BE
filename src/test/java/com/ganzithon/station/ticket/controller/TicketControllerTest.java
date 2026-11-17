@@ -146,7 +146,7 @@ class TicketControllerTest {
                 .andExpect(jsonPath("$.data.ticketId").value(ticketId))
                 .andExpect(jsonPath("$.data.patternCode").value(matchesPattern("PATTERN_0[1-3]")))
                 .andExpect(jsonPath("$.data.ticketNumber").value(ticketNumber(issued)))
-                .andExpect(jsonPath("$.data.waitingName").value("결과발표"))
+                .andExpect(jsonPath("$.data.waitingName").value("결과 발표 방"))
                 .andExpect(jsonPath("$.data.trainCount").value(3))
                 .andExpect(jsonPath("$.data.endReason").value("ANSWERED"))
                 .andExpect(jsonPath("$.data.endedAt").value(matchesPattern(".*\\+09:00")))
@@ -277,7 +277,7 @@ class TicketControllerTest {
                         (String) JsonPath.read(firstEnded, "$.data.patternCode")))
                 .andExpect(jsonPath("$.data.blanketPieces[0].ticketNumber").value(
                         (int) JsonPath.read(firstEnded, "$.data.ticketNumber")))
-                .andExpect(jsonPath("$.data.blanketPieces[0].waitingName").value("결과발표"))
+                .andExpect(jsonPath("$.data.blanketPieces[0].waitingName").value("결과 발표 방"))
                 .andExpect(jsonPath("$.data.blanketPieces[0].trainCount").value(3))
                 .andExpect(jsonPath("$.data.blanketPieces[0].endReason").value("ANSWERED"))
                 .andExpect(jsonPath("$.data.blanketPieces[1].ticketId").value(second))
