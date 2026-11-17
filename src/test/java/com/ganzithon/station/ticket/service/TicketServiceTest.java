@@ -7,11 +7,18 @@ import com.ganzithon.station.global.security.Requester;
 import com.ganzithon.station.ticket.dto.request.TicketCreateRequest;
 import com.ganzithon.station.ticket.dto.request.TicketEndRequest;
 import com.ganzithon.station.ticket.dto.response.TicketCreateResponse;
+import com.ganzithon.station.room.entity.MoodChip;
+import com.ganzithon.station.room.entity.SituationChip;
+import com.ganzithon.station.room.service.RoomService;
 import com.ganzithon.station.ticket.entity.EndReason;
+import com.ganzithon.station.ticket.entity.Ticket;
+import com.ganzithon.station.ticket.repository.TicketRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +26,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.IntStream;
@@ -27,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 동시 요청. 같은 대기실에 여러 명이 동시에 발급받아도 번호가 겹치거나 빠지지 않고,
- * 같은 승차권을 동시에 종료해도 한 번만 성공해야 합니다.
+ * 같은 승차권을 동시에 종료해도 한 번만 성공하고, 도안 바꾸기는 남은 털실보다 많이 성공하지 않아야 합니다.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -37,6 +45,18 @@ class TicketServiceTest {
 
     @Autowired
     TicketService ticketService;
+
+    @Autowired
+    TicketRepository ticketRepository;
+
+    @Autowired
+    RoomService roomService;
+
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    TransactionTemplate transactionTemplate;
 
     @Test
     void 동시에_발급해도_번호가_겹치거나_빠지지_않는다() throws Exception {
@@ -95,5 +115,65 @@ class TicketServiceTest {
         assertThat(succeeded).isEqualTo(1);
         assertThat(failures).hasSize(CONCURRENT_REQUESTS - 1).containsOnly(ErrorCode.TICKET_ALREADY_ENDED);
         assertThat(ticketService.getStats().answeredCount()).isEqualTo(answeredBefore + 1);
+    }
+
+    @Test
+    void 도안_바꾸기를_동시에_눌러도_남은_털실만큼만_성공한다() throws Exception {
+        TicketCreateResponse ticket = ticketService.createTicket(
+                new Requester(null, null), new TicketCreateRequest("RESULT", null));
+        Requester owner = new Requester(null, ticket.guestToken());
+        jdbcTemplate.update("update tickets set started_at = now() - interval '31 seconds' where id = ?", ticket.ticketId());
+
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<?>> futures = new ArrayList<>();
+        try (ExecutorService executor = Executors.newFixedThreadPool(CONCURRENT_REQUESTS)) {
+            for (int i = 0; i < CONCURRENT_REQUESTS; i++) {
+                futures.add(executor.submit(() -> {
+                    start.await();
+                    return ticketService.changeKnittingPattern(ticket.ticketId(), owner);
+                }));
+            }
+            start.countDown();
+        }
+
+        int succeeded = 0;
+        List<ErrorCode> failures = new ArrayList<>();
+        for (Future<?> future : futures) {
+            try {
+                future.get();
+                succeeded++;
+            } catch (ExecutionException e) {
+                failures.add(((BusinessException) e.getCause()).getErrorCode());
+            }
+        }
+        assertThat(succeeded).isEqualTo(2);
+        assertThat(failures).containsOnly(ErrorCode.KNITTING_NOT_ENOUGH_YARN);
+        assertThat(jdbcTemplate.queryForObject("select yarn_spent from tickets where id = ?", Integer.class, ticket.ticketId()))
+                .isEqualTo(2);
+    }
+
+    @Test
+    void 방송_기록이_늦게_저장돼도_종료가_되돌아가지_않는다() {
+        TicketCreateResponse ticket = ticketService.createTicket(
+                new Requester(null, null), new TicketCreateRequest("RESULT", null));
+        Requester owner = new Requester(null, ticket.guestToken());
+        SituationChip chip = roomService.getSituationChipEntity("RESULT", "RESULT_EXAM");
+
+        transactionTemplate.executeWithoutResult(status -> {
+            Ticket loaded = ticketRepository.findById(ticket.ticketId()).orElseThrow();
+            // 방송 쪽이 승차권을 읽은 뒤, 다른 요청이 종료하고 먼저 커밋
+            try (ExecutorService other = Executors.newSingleThreadExecutor()) {
+                other.submit(() -> ticketService.endTicket(ticket.ticketId(), owner, new TicketEndRequest(EndReason.LET_GO)))
+                        .get(5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+            loaded.recordBroadcast(chip, MoodChip.CALM);
+        });
+
+        assertThat(jdbcTemplate.queryForMap("select status, end_reason, mood_chip from tickets where id = ?", ticket.ticketId()))
+                .containsEntry("status", "ENDED")
+                .containsEntry("end_reason", "LET_GO")
+                .containsEntry("mood_chip", "CALM");
     }
 }

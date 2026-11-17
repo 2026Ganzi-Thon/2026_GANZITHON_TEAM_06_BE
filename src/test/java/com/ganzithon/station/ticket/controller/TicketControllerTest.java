@@ -172,8 +172,7 @@ class TicketControllerTest {
     void 비로그인_종료는_조각_내용을_주고_계정에_저장하지_않는다() throws Exception {
         ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
         Long ticketId = ticketId(issued);
-        // 46초 전에 시작한 기다림 → 15초 간격 열차가 3대 지나감
-        jdbcTemplate.update("update tickets set started_at = now() - interval '46 seconds' where id = ?", ticketId);
+        startedSecondsAgo(ticketId, 46);
 
         end(ticketId, guestToken(issued), "{\"endReason\": \"ANSWERED\"}")
                 .andExpect(status().isOk())
@@ -293,6 +292,189 @@ class TicketControllerTest {
                 .andExpect(jsonPath("$.data.answeredCount").value(count(before, "answeredCount")))
                 .andExpect(jsonPath("$.data.unexpectedCount").value(count(before, "unexpectedCount")))
                 .andExpect(jsonPath("$.data.letGoCount").value(count(before, "letGoCount") + 1));
+    }
+
+    // ── 승차권 상태 ──
+
+    @Test
+    void 상태_조회는_지금_기준_열차_수와_남은_털실을_준다() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\", \"moodChip\": \"CALM\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        startedSecondsAgo(ticketId, 46);
+
+        getTicket(ticketId, guestToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.ticketId").value(ticketId))
+                .andExpect(jsonPath("$.data.roomCode").value("RESULT"))
+                .andExpect(jsonPath("$.data.displayName").value(matchesPattern("\\d+번 고요한 양")))
+                .andExpect(jsonPath("$.data.status").value("WAITING"))
+                .andExpect(jsonPath("$.data.endReason").value(nullValue()))
+                .andExpect(jsonPath("$.data.endedAt").value(nullValue()))
+                .andExpect(jsonPath("$.data.serverTime").isString())
+                .andExpect(jsonPath("$.data.trainIntervalMs").value(15000))
+                .andExpect(jsonPath("$.data.trainCount").value(3))
+                .andExpect(jsonPath("$.data.remainingYarnCount").value(3))
+                .andExpect(jsonPath("$.data.knittingDeliveredAt").value(nullValue()));
+    }
+
+    @Test
+    void 끝난_기다림은_종료_시각_기준으로_센다() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        startedSecondsAgo(ticketId, 46);
+        end(ticketId, guestToken, "{\"endReason\": \"ANSWERED\"}").andExpect(status().isOk());
+        // 종료 후 시간이 흘러도 열차 수가 늘지 않아야 함: 시작·종료를 같이 1분 앞으로 옮김
+        jdbcTemplate.update("update tickets set started_at = started_at - interval '1 minute', "
+                + "ended_at = ended_at - interval '1 minute' where id = ?", ticketId);
+
+        getTicket(ticketId, guestToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ENDED"))
+                .andExpect(jsonPath("$.data.endReason").value("ANSWERED"))
+                .andExpect(jsonPath("$.data.endedAt").isString())
+                .andExpect(jsonPath("$.data.trainCount").value(3));
+    }
+
+    @Test
+    void 남의_승차권_상태는_403() throws Exception {
+        Long ticketId = ticketId(issue("{\"roomCode\": \"RESULT\"}"));
+        String otherGuestToken = guestToken(issue("{\"roomCode\": \"RESULT\"}"));
+
+        getTicket(ticketId, otherGuestToken)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("TICKET_FORBIDDEN"));
+    }
+
+    // ── 털실 톡톡 ──
+
+    @Test
+    void 도안_바꾸기는_털실_1올을_쓰고_다른_도안으로_바꾸며_털실이_없으면_409() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        startedSecondsAgo(ticketId, 31); // 털실 2올
+        String firstPattern = JsonPath.read(issued.andReturn().getResponse().getContentAsString(), "$.data.patternCode");
+
+        String secondPattern = JsonPath.read(changePattern(ticketId, guestToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.remainingYarnCount").value(1))
+                .andReturn().getResponse().getContentAsString(), "$.data.patternCode");
+        changePattern(ticketId, guestToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.remainingYarnCount").value(0));
+        changePattern(ticketId, guestToken)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("KNITTING_NOT_ENOUGH_YARN"));
+
+        assertThat(secondPattern).isNotEqualTo(firstPattern);
+        assertThat(jdbcTemplate.queryForObject("select yarn_spent from tickets where id = ?", Integer.class, ticketId))
+                .isEqualTo(2);
+        getTicket(ticketId, guestToken)
+                .andExpect(jsonPath("$.data.trainCount").value(2))
+                .andExpect(jsonPath("$.data.remainingYarnCount").value(0));
+    }
+
+    @Test
+    void 종료하면_조각에는_마지막으로_바꾼_도안이_들어간다() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        startedSecondsAgo(ticketId, 16);
+        String changed = JsonPath.read(changePattern(ticketId, guestToken)
+                .andReturn().getResponse().getContentAsString(), "$.data.patternCode");
+
+        end(ticketId, guestToken, "{\"endReason\": \"ANSWERED\"}")
+                .andExpect(jsonPath("$.data.patternCode").value(changed));
+    }
+
+    @Test
+    void 역장에게_전달하면_시각이_남고_다시_보내도_처음_시각이다() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        startedSecondsAgo(ticketId, 16);
+
+        String first = JsonPath.read(deliver(ticketId, guestToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.knittingDeliveredAt").value(matchesPattern(".*\\+09:00")))
+                .andReturn().getResponse().getContentAsString(), "$.data.knittingDeliveredAt");
+
+        deliver(ticketId, guestToken).andExpect(jsonPath("$.data.knittingDeliveredAt").value(first));
+        getTicket(ticketId, guestToken).andExpect(jsonPath("$.data.knittingDeliveredAt").value(first));
+    }
+
+    @Test
+    void 도안을_바꾸면_전달_기록이_지워진다() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        startedSecondsAgo(ticketId, 16);
+        deliver(ticketId, guestToken).andExpect(status().isOk());
+
+        changePattern(ticketId, guestToken).andExpect(status().isOk());
+
+        getTicket(ticketId, guestToken).andExpect(jsonPath("$.data.knittingDeliveredAt").value(nullValue()));
+    }
+
+    @Test
+    void 털실을_한_올도_못_받았으면_전달은_409() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+
+        deliver(ticketId(issued), guestToken(issued))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("KNITTING_NOT_ENOUGH_YARN"));
+    }
+
+    @Test
+    void 끝난_기다림은_털실_톡톡을_할_수_없다() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        startedSecondsAgo(ticketId, 31);
+        end(ticketId, guestToken, "{\"endReason\": \"LET_GO\"}").andExpect(status().isOk());
+
+        changePattern(ticketId, guestToken)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("TICKET_ALREADY_ENDED"));
+        deliver(ticketId, guestToken)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("TICKET_ALREADY_ENDED"));
+    }
+
+    @Test
+    void 남의_승차권으로_털실_톡톡을_하면_403() throws Exception {
+        Long ticketId = ticketId(issue("{\"roomCode\": \"RESULT\"}"));
+        startedSecondsAgo(ticketId, 31);
+        String otherGuestToken = guestToken(issue("{\"roomCode\": \"RESULT\"}"));
+
+        changePattern(ticketId, otherGuestToken)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("TICKET_FORBIDDEN"));
+        deliver(ticketId, otherGuestToken)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("TICKET_FORBIDDEN"));
+    }
+
+    private ResultActions getTicket(Long ticketId, String guestToken) throws Exception {
+        return mockMvc.perform(get("/api/v1/tickets/{ticketId}", ticketId).header(GuestTokenHeader.NAME, guestToken));
+    }
+
+    private ResultActions changePattern(Long ticketId, String guestToken) throws Exception {
+        return mockMvc.perform(post("/api/v1/tickets/{ticketId}/knitting/change-pattern", ticketId)
+                .header(GuestTokenHeader.NAME, guestToken));
+    }
+
+    private ResultActions deliver(Long ticketId, String guestToken) throws Exception {
+        return mockMvc.perform(post("/api/v1/tickets/{ticketId}/knitting/deliver", ticketId)
+                .header(GuestTokenHeader.NAME, guestToken));
+    }
+
+    /** 열차 간격 15초 기준: 16초 전 → 열차 1대, 31초 전 → 2대, 46초 전 → 3대 */
+    private void startedSecondsAgo(Long ticketId, int seconds) {
+        jdbcTemplate.update("update tickets set started_at = now() - make_interval(secs => ?) where id = ?",
+                seconds, ticketId);
     }
 
     private ResultActions end(Long ticketId, String guestToken, String json) throws Exception {
