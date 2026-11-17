@@ -1,49 +1,33 @@
 package com.ganzithon.station.ticket.controller;
 
 import com.ganzithon.station.TestcontainersConfiguration;
-import com.ganzithon.station.blanket.dto.request.BlanketPieceCreateRequest;
-import com.ganzithon.station.blanket.service.BlanketService;
 import com.ganzithon.station.global.security.AccountTokenProvider;
 import com.ganzithon.station.global.security.GuestTokenHeader;
-import com.ganzithon.station.ticket.entity.EndReason;
-import com.ganzithon.station.user.entity.User;
-import com.ganzithon.station.user.service.UserService;
 import com.jayway.jsonpath.JsonPath;
-import jakarta.persistence.EntityManager;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 승차권 발급·기다림 종료·전광판 통계. 시드 데이터가 들어간 실제 Postgres로 확인합니다.
- * 아직 구현 전인 UserService.getUserEntity, BlanketService.createPiece(상진)는 이 테스트에서만 대신합니다.
- * 구현이 머지되면 두 스텁을 지워도 테스트가 그대로 통과해야 합니다.
+ * 승차권 발급·상태 조회·털실 톡톡·기다림 종료·전광판 통계. 시드 데이터가 들어간 실제 Postgres로 확인합니다.
+ * user·blanket도 실제 구현을 그대로 씁니다 (로그인 종료는 blanket_pieces에 저장된 행까지 확인).
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -58,23 +42,6 @@ class TicketControllerTest {
 
     @Autowired
     JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    EntityManager entityManager;
-
-    @MockitoSpyBean
-    UserService userService;
-
-    @MockitoSpyBean
-    BlanketService blanketService;
-
-    @BeforeEach
-    void stubOtherDomainTodos() {
-        doAnswer(invocation -> entityManager.getReference(User.class, invocation.getArgument(0)))
-                .when(userService).getUserEntity(anyLong());
-        doReturn(null).when(blanketService).createPiece(any());
-        clearInvocations(blanketService);
-    }
 
     @Test
     void 비로그인_발급은_201과_게스트_토큰_호칭_도안을_준다() throws Exception {
@@ -189,7 +156,8 @@ class TicketControllerTest {
                 .containsEntry("status", "ENDED")
                 .containsEntry("end_reason", "ANSWERED")
                 .extractingByKey("ended_at").isNotNull();
-        verify(blanketService, never()).createPiece(any());
+        assertThat(jdbcTemplate.queryForObject("select count(*) from blanket_pieces where ticket_id = ?",
+                Integer.class, ticketId)).isZero();
     }
 
     @Test
@@ -215,6 +183,7 @@ class TicketControllerTest {
                 .andReturn().getResponse().getContentAsString();
         Long ticketId = ((Number) JsonPath.read(body, "$.data.ticketId")).longValue();
         int ticketNumber = JsonPath.read(body, "$.data.ticketNumber");
+        startedSecondsAgo(ticketId, 31);
         Long patternId = jdbcTemplate.queryForObject("select pattern_id from tickets where id = ?", Long.class, ticketId);
         String roomName = jdbcTemplate.queryForObject("select name from rooms where code = 'NO_REPLY'", String.class);
 
@@ -223,12 +192,19 @@ class TicketControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"endReason\": \"UNEXPECTED\"}"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.trainCount").value(2))
                 .andExpect(jsonPath("$.data.savedToAccount").value(true));
 
-        ArgumentCaptor<BlanketPieceCreateRequest> captor = ArgumentCaptor.forClass(BlanketPieceCreateRequest.class);
-        verify(blanketService).createPiece(captor.capture());
-        assertThat(captor.getValue()).isEqualTo(new BlanketPieceCreateRequest(
-                ticketId, userId, patternId, ticketNumber, roomName, 0, EndReason.UNEXPECTED));
+        Map<String, Object> piece = jdbcTemplate.queryForMap("""
+                select user_id, pattern_id, ticket_number, waiting_name, train_count, end_reason
+                from blanket_pieces where ticket_id = ?""", ticketId);
+        assertThat(piece)
+                .containsEntry("user_id", userId)
+                .containsEntry("pattern_id", patternId)
+                .containsEntry("ticket_number", ticketNumber)
+                .containsEntry("waiting_name", roomName)
+                .containsEntry("train_count", 2)
+                .containsEntry("end_reason", "UNEXPECTED");
     }
 
     @Test
