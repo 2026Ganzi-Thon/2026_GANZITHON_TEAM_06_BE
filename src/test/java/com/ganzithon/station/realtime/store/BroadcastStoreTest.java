@@ -113,6 +113,28 @@ class BroadcastStoreTest {
                 .contains(new ReactionCounts(0, 1));
     }
 
+    // ── 지금 전광판에 나와 있는 방송 (방송 도중 입장용) ──
+
+    @Test
+    void 방송을_한_번도_안_한_방은_전광판_방송이_없다() {
+        assertThat(store.findOnAir("RESULT", 0)).isEmpty();
+    }
+
+    @Test
+    void 나와_있는_방송은_남은_시간과_리액션_수를_주고_노출이_끝나면_없다() {
+        store.enqueue(broadcast("a", "RESULT"));
+        store.pollDue(1_000);
+        store.countReaction("RESULT", "a", 1L, Reaction.NOD, 2_000);
+
+        BroadcastStore.OnAirSnapshot onAir = store.findOnAir("RESULT", 5_000).orElseThrow();
+
+        assertThat(onAir.broadcast().broadcastId()).isEqualTo("a");
+        assertThat(onAir.remainingMs()).isEqualTo(DISPLAY - 4_000);
+        assertThat(onAir.counts()).isEqualTo(new ReactionCounts(1, 0));
+        assertThat(store.findOnAir("RESULT", 1_000 + DISPLAY)).isEmpty();
+        assertThat(store.findOnAir("NO_REPLY", 5_000)).isEmpty();
+    }
+
     private static QueuedBroadcast broadcast(String broadcastId, String roomCode) {
         return new QueuedBroadcast(broadcastId, roomCode, 1, "1번 양", null, "CHIP", "문구", 0);
     }

@@ -10,8 +10,8 @@ import java.util.concurrent.BlockingQueue;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 1초 리액션 (BR-03): 전광판 방송에 끄덕임·짠함으로 반응합니다.
- * 방송이 나와 있는 동안 반응해야 해서 이 테스트만 노출 시간을 3초로 늘렸습니다.
+ * 1초 리액션 (BR-03): 전광판 방송에 끄덕임·짠함으로 반응합니다. 방송 도중 입장했을 때의 전광판(BR-02)도 여기서 확인합니다.
+ * 방송이 나와 있는 동안 반응·입장해야 해서 이 테스트만 노출 시간을 3초로 늘렸습니다.
  * "보내지 않음"은 그다음 리액션이 먼저 도착하는지로 확인합니다 (같은 방 메시지는 순서대로 옴).
  */
 @TestPropertySource(properties = "station.realtime.broadcast-display=3s")
@@ -66,6 +66,35 @@ class ReactionWebSocketTest extends StompIntegrationTest {
         assertThat(nextReaction(room)).as("1초 뒤에는 다시 보내지지만 같은 승객의 끄덕임은 다시 세지 않음")
                 .containsEntry("ticketNumber", reactor.ticketNumber())
                 .containsEntry("nodCount", 1).containsEntry("awwCount", 1);
+    }
+
+    @Test
+    void 방송_도중에_입장하면_ROOM_STATE에_지금_전광판_방송과_리액션_수가_온다() throws Exception {
+        Joined broadcaster = join("NO_REPLY");
+        Joined reactor = join("NO_REPLY");
+        BlockingQueue<Map<String, Object>> room = broadcaster.client().subscribe("/topic/rooms/NO_REPLY");
+        broadcaster.client().broadcast("NO_REPLY",
+                Map.of("situationChipCode", "NO_REPLY_WAITING_REPLY", "moodChip", "FLUTTERING"));
+        Map<String, Object> broadcast = pollUntil(room, event -> "BROADCAST".equals(event.get("type")));
+        reactor.client().react("NO_REPLY", Map.of("broadcastId", broadcast.get("broadcastId"), "reaction", "AWW"));
+        nextReaction(room);
+
+        String guestToken = newGuestToken();
+        long ticketId = insertTicket("NO_REPLY", guestToken, null, false);
+        Client latecomer = connectAsGuest(guestToken);
+        latecomer.join("NO_REPLY", ticketId);
+        Map<String, Object> roomState = latecomer.nextEvent();
+
+        assertThat(roomState.get("type")).isEqualTo("ROOM_STATE");
+        Map<String, Object> onAir = map(roomState.get("onAirBroadcast"));
+        assertThat(onAir.get("broadcastId")).isEqualTo(broadcast.get("broadcastId"));
+        assertThat(onAir.get("ticketNumber")).isEqualTo(broadcaster.ticketNumber());
+        assertThat(onAir.get("displayName")).isEqualTo(broadcast.get("displayName"));
+        assertThat(onAir.get("sentence")).isEqualTo(broadcast.get("sentence"));
+        assertThat(onAir.get("situationChipCode")).isEqualTo("NO_REPLY_WAITING_REPLY");
+        assertThat(((Number) onAir.get("remainingMs")).longValue()).isBetween(1L, 3_000L);
+        assertThat(onAir.get("nodCount")).isEqualTo(0);
+        assertThat(onAir.get("awwCount")).isEqualTo(1);
     }
 
     @Test
