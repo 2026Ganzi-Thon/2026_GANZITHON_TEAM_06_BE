@@ -32,13 +32,7 @@ public record BlanketPieceResponse(
         EndReason endReason,
 
         @Schema(description = "조각을 만든 시각", example = "2026-11-11T21:30:00+09:00")
-        Instant createdAt,
-
-        @Schema(description = "조각 ID", example = "1")
-        Long pieceId,
-
-        @Schema(description = "앞면 도안 ID", example = "1")
-        Long patternId
+        Instant createdAt
 ) {
     public static BlanketPieceResponse from(BlanketPiece blanketPiece) {
         return new BlanketPieceResponse(
@@ -49,9 +43,7 @@ public record BlanketPieceResponse(
                 blanketPiece.getWaitingName(),
                 blanketPiece.getTrainCount(),
                 blanketPiece.getEndReason(),
-                blanketPiece.getCreatedAt(),
-                blanketPiece.getId(),
-                blanketPiece.getPattern().getId()
+                blanketPiece.getCreatedAt()
         );
     }
 }
