@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 대기실별 접속 승객과 좌석 (메모리만, DB 없음). 서버를 재시작하면 비고, 다시 접속하면 채워집니다.
@@ -87,6 +88,11 @@ public class RoomPassengerStore {
                 displayName, moodChip, current.startedAt(), current.seatNumber(), current.sessionId());
         members.put(ticketId, updated);
         bySession.put(updated.sessionId(), updated);
+    }
+
+    /** 실제 승객이 한 명 이상 있는 방 (가상 승객 자동 방송 대상) */
+    public synchronized Set<String> findOccupiedRoomCodes() {
+        return Set.copyOf(rooms.keySet());
     }
 
     public synchronized List<Passenger> findByRoomCode(String roomCode) {
