@@ -40,9 +40,9 @@ class BroadcastWebSocketTest extends StompIntegrationTest {
         assertThat(broadcast.get("ticketNumber")).isEqualTo(myTicketNumber);
         assertThat(broadcast.get("moodChip")).isEqualTo("FLUTTERING");
         assertThat(broadcast.get("situationChipCode")).isEqualTo("NO_REPLY_WAITING_REPLY");
-        assertThat(broadcast.get("situationChipLabel")).isEqualTo("답장 기다리는 중");
+        assertThat(broadcast.get("situationChipLabel")).isEqualTo("답장을 기다리는 중");
         assertThat(broadcast.get("sentence"))
-                .isEqualTo("안내 말씀 드립니다. " + myTicketNumber + "번 두근두근한 양님은 지금 '답장 기다리는 중'입니다.");
+                .isEqualTo("안내 말씀 드립니다. " + myTicketNumber + "번 두근두근한 양님은 지금 '답장을 기다리는 중'입니다.");
         assertThat(broadcast.get("displayMs")).isEqualTo(300);
 
         Map<String, Object> saved = jdbcTemplate.queryForMap("""

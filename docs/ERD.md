@@ -118,7 +118,7 @@ erDiagram
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | room_id | bigint | PK, FK → rooms | |
-| last_number | int | not null, default 0 | 마지막으로 발급한 번호 |
+| last_number | int | not null, default 0 | 마지막으로 발급한 번호. `V20261116_2347` 마이그레이션으로 99에서 시작해서 실제 번호는 100번부터 (1~99는 가상 승객) |
 
 - 번호 발급은 **한 문장으로 올리고 읽습니다**. 동시에 여러 명이 발급받아도 번호가 겹치지 않습니다.
   ```sql
@@ -134,7 +134,7 @@ erDiagram
 | id | bigint | PK | |
 | room_id | bigint | not null, FK → rooms | 칩이 속한 대기실 |
 | code | varchar(40) | not null, unique | 예: `NO_REPLY_WAITING_ANSWER` |
-| label | varchar(50) | not null | 예: 답장 기다리는 중 |
+| label | varchar(50) | not null | 예: 답장을 기다리는 중 |
 | sort_order | int | not null | |
 
 ### `patterns` — 도안 (담당: room, 시드 데이터)

@@ -5,11 +5,14 @@ import com.ganzithon.station.global.exception.BusinessException;
 import com.ganzithon.station.global.exception.ErrorCode;
 import com.ganzithon.station.room.entity.Pattern;
 import com.ganzithon.station.room.entity.SituationChip;
+import com.ganzithon.station.room.entity.VirtualPassenger;
 import com.ganzithon.station.room.repository.PatternRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -81,5 +84,47 @@ class RoomServiceTest {
                         .isNotEqualTo(current.getId());
             }
         }
+    }
+
+    @Test
+    void 랜덤_상황_칩은_항상_그_방의_칩() {
+        for (int i = 0; i < 20; i++) {
+            assertThat(roomService.getRandomSituationChip("NO_REPLY").getCode()).startsWith("NO_REPLY_");
+        }
+    }
+
+    @Test
+    void 가상_승객은_대기실마다_2명이고_번호는_1부터_99() {
+        for (String roomCode : List.of("RESULT", "NO_REPLY", "GANZITHON_FINAL")) {
+            List<VirtualPassenger> passengers = roomService.getVirtualPassengerList(roomCode);
+
+            assertThat(passengers).hasSize(2).allSatisfy(passenger -> {
+                assertThat(passenger.roomCode()).isEqualTo(roomCode);
+                assertThat(passenger.ticketNumber()).isBetween(1, 99);
+            });
+            // 호칭에 들어가니 두 명의 번호와 상태 칩이 달라야 구분됩니다
+            assertThat(passengers).extracting(VirtualPassenger::ticketNumber).doesNotHaveDuplicates();
+            assertThat(passengers).extracting(VirtualPassenger::moodChip).doesNotHaveDuplicates();
+        }
+    }
+
+    @Test
+    void 가상_승객_호칭() {
+        assertThat(roomService.getVirtualPassengerList("RESULT").get(0).displayName()).isEqualTo("7번 조마조마한 양");
+    }
+
+    @Test
+    void 없는_대기실의_가상_승객이면_ROOM_NOT_FOUND() {
+        assertThatThrownBy(() -> roomService.getVirtualPassengerList("NOT_EXIST"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ROOM_NOT_FOUND);
+    }
+
+    @Test
+    void 읽씹_방_상황_칩은_와이어프레임_S06_문구_순서() {
+        assertThat(roomService.getSituationChipEntityList("NO_REPLY"))
+                .extracting(SituationChip::getLabel)
+                .containsExactly("읽음 표시 뜬 지 한참째", "답장을 기다리는 중", "보낸 메시지에 소식이 없는 중",
+                        "대화창을 열었다 닫았다 하는 중", "아직 1이 안 사라진 중", "보낸 시간을 자꾸 다시 보는 중");
     }
 }

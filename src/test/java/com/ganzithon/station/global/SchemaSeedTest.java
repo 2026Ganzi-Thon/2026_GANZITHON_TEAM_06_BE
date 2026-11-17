@@ -46,7 +46,7 @@ class SchemaSeedTest {
         assertThat(codes).containsExactly("RESULT", "NO_REPLY", "GANZITHON_FINAL");
 
         Integer counterSum = jdbcTemplate.queryForObject(
-                "select count(*) from room_ticket_counters c join rooms r on r.id = c.room_id where c.last_number >= 0",
+                "select count(*) from room_ticket_counters c join rooms r on r.id = c.room_id where c.last_number >= 99",
                 Integer.class);
         assertThat(counterSum).isEqualTo(3);
     }
@@ -54,7 +54,7 @@ class SchemaSeedTest {
     @Test
     void 상황_칩은_방별_개수와_순서가_맞음() {
         assertThat(chipCodes("RESULT")).hasSize(7).first().isEqualTo("RESULT_AFTER_INTERVIEW");
-        assertThat(chipCodes("NO_REPLY")).hasSize(6).last().isEqualTo("NO_REPLY_ONE_LINE");
+        assertThat(chipCodes("NO_REPLY")).hasSize(6).last().isEqualTo("NO_REPLY_CHECK_SENT_TIME");
         assertThat(chipCodes("GANZITHON_FINAL")).hasSize(5).last().isEqualTo("FINAL_LAST_COMMIT");
     }
 

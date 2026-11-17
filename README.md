@@ -117,7 +117,7 @@ const client = new Client({
 | `seatNumber` | 좌석 번호 (1부터). 자리가 다 차서 서서 기다리면 null (좌석 수: 환경변수 `SEAT_COUNT`, 기본 20) |
 | `startedTs` | 기다림 시작 시각. 머문 시간 계산용 |
 
-`sentence` 예: `안내 말씀 드립니다. 104번 두근두근한 양님은 지금 '답장 기다리는 중'입니다.`
+`sentence` 예: `안내 말씀 드립니다. 104번 두근두근한 양님은 지금 '답장을 기다리는 중'입니다.`
 
 실패 `code`
 - 입장: `TICKET_NOT_FOUND`, `TICKET_FORBIDDEN`(내 승차권 아님), `TICKET_ALREADY_ENDED`, `TICKET_ROOM_MISMATCH`(다른 대기실 승차권), `COMMON_INVALID_INPUT`(형식 오류)
