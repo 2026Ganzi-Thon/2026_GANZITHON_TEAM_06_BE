@@ -95,6 +95,7 @@ const client = new Client({
 |---|---|---|
 | `/app/rooms/{roomCode}/join` | `{ "ticketId": 1 }` | 입장 (ON-05). 그 대기실의 진행 중인 내 승차권이어야 합니다. 자동으로 좌석에 앉습니다 |
 | `/app/rooms/{roomCode}/broadcast` | `{ "situationChipCode": "NO_REPLY_WAITING_REPLY", "moodChip": "FLUTTERING" }` | 조합형 방송 (BR-01). 입장한 방에서만, 두 칩 모두 필수, 30초에 한 번. 고른 상태 칩으로 내 호칭이 바뀝니다 |
+| `/app/rooms/{roomCode}/passenger-card` | `{ "ticketNumber": 104 }` | 승객 확대 카드 (MY-05). 같은 방에 입장한 상태에서 승객을 탭하면 나에게만 `PASSENGER_CARD`가 옵니다 |
 | `/app/rooms/{roomCode}/reaction` | `{ "broadcastId": "...", "reaction": "NOD" }` | 1초 리액션 (BR-03). 전광판 방송에 반응합니다. `broadcastId`는 `BROADCAST`의 값, `reaction`은 `NOD`(끄덕임)·`AWW`(짠함), 둘 다 필수. 입장한 방에서만. **방송이 전광판에서 내려갔거나 1초 안에 또 보내면 에러 없이 무시합니다** |
 
 ### 서버 → 클라이언트
@@ -107,6 +108,7 @@ const client = new Client({
 | `BROADCAST_ACCEPTED` | `/user/queue/events` | `broadcastId`, `queuePosition`, `cooldownMs`, `displayName`, `serverTs` | 방송 요청이 대기열에 들어감. `cooldownMs` 동안 방송 버튼을 막아 주세요 |
 | `BROADCAST` | `/topic/rooms/{roomCode}` | `broadcastId`, `ticketNumber`, `displayName`, `moodChip`, `situationChipCode`, `situationChipLabel`, `sentence`, `displayMs`, `queuedTs`, `serverTs` | 전광판 송출 (BR-02). 대기열 순서대로 `displayMs`(15초) 간격. 보낸 승객 카드의 호칭도 이 값으로 갱신하세요 |
 | `REACTION` | `/topic/rooms/{roomCode}` | `broadcastId`, `ticketNumber`, `reaction`, `nodCount`, `awwCount`, `serverTs` | 리액션 (BR-03). `ticketNumber`(반응한 양) 캐릭터 옆에 이모지를 띄우고, 전광판의 끄덕임·짠함 숫자를 `nodCount`·`awwCount`로 바꾸세요. 숫자는 그 방송에 반응한 승객 수예요 (한 명당 종류마다 1번, 다음 방송부터 새로 셈) |
+| `PASSENGER_CARD` | `/user/queue/events` | `ticketNumber`, `displayName`, `moodChip`, `startedTs`, `visibility`, `patternCodes`, `trainCount`, `serverTs` | 탭한 승객 카드 (MY-05). `visibility`가 `PUBLIC`이면 조각 도안(`patternCodes`, 최신부터 최대 9개)·승차권 번호·지나간 열차 수(`trainCount`)를, 그 외(`PRIVATE` 비공개, `NO_PIECE` 조각 없음, `GUEST` 비로그인)면 머문 시간(`startedTs`)과 상태 칩만 보여 주세요. 닉네임·종료 표식은 오지 않습니다 |
 | `ERROR` | `/user/queue/events` | `code`, `message`, `retryAfterMs`(있을 때만), `serverTs` | 요청 실패. `code`는 REST와 같은 에러 코드 |
 
 `passenger` (`passengers[]`의 원소)
@@ -132,6 +134,7 @@ null이면 전광판에 기본 안내 문구를 보여 주세요: 방송을 한 
 `sentence` 예: `안내 말씀 드립니다. 104번 두근두근한 양님은 지금 '답장을 기다리는 중'입니다.`
 
 실패 `code`
+- 승객 카드: `REALTIME_NOT_JOINED`(그 방에 입장 안 함), `REALTIME_PASSENGER_NOT_FOUND`(그 번호의 승객이 방에 없음), `COMMON_INVALID_INPUT`(`ticketNumber` 누락)
 - 입장: `TICKET_NOT_FOUND`, `TICKET_FORBIDDEN`(내 승차권 아님), `TICKET_ALREADY_ENDED`, `TICKET_ROOM_MISMATCH`(다른 대기실 승차권), `COMMON_INVALID_INPUT`(형식 오류)
 - 리액션: `REALTIME_NOT_JOINED`(그 방에 입장 안 함), `COMMON_INVALID_INPUT`(`broadcastId`·`reaction` 누락, 목록에 없는 `reaction`)
 - 방송: `REALTIME_NOT_JOINED`(그 방에 입장 안 함), `BROADCAST_COOLDOWN`(+`retryAfterMs`), `BROADCAST_QUEUE_FULL`(방 대기열 20개 가득), `SITUATION_CHIP_NOT_FOUND`(그 방의 칩이 아님), `TICKET_ALREADY_ENDED`, `COMMON_INVALID_INPUT`(칩 누락)
