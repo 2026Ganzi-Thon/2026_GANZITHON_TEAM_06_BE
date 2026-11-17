@@ -46,16 +46,16 @@ management:
 station:
   jwt:
     expiration: 7d                # 계정 토큰 유효 기간. 리프레시 토큰 없음
-  realtime:
-    seat-count: ${SEAT_COUNT:20}  # 대기실 하나의 좌석 수. 다 차면 서서 기다림
-    broadcast-cooldown: 30s       # 승객 한 명의 방송 간격 (BR-01)
-    broadcast-display: 15s        # 전광판 노출 시간 = 대기열 송출 간격 (BR-02)
-    broadcast-queue-size: 20      # 대기실 하나의 방송 대기열 상한
   virtual-passenger:              # 시연용 가상 승객 자동 방송 (RM-05). 실제 승객이 있는 방만
     enabled: ${VIRTUAL_PASSENGER_ENABLED:true}
     first-delay: 10s              # 방에 처음 들어오고 첫 가상 방송까지
     min-interval: 40s             # 다음 가상 방송까지 40~90초 랜덤
     max-interval: 90s
+  realtime:
+    seat-count: ${SEAT_COUNT:20}  # 대기실 하나의 좌석 수. 다 차면 서서 기다림
+    broadcast-cooldown: 30s       # 승객 한 명의 방송 간격 (BR-01)
+    broadcast-display: 15s        # 전광판 노출 시간 = 대기열 송출 간격 (BR-02)
+    broadcast-queue-size: 20      # 대기실 하나의 방송 대기열 상한
 
 ---
 # 로컬 개발: docker-compose.yml의 Postgres 기본값과 맞춰 두었습니다.
