@@ -8,6 +8,7 @@ import com.ganzithon.station.room.dto.response.SituationChipListResponse;
 import com.ganzithon.station.room.entity.Pattern;
 import com.ganzithon.station.room.entity.Room;
 import com.ganzithon.station.room.entity.SituationChip;
+import com.ganzithon.station.room.entity.VirtualPassenger;
 import com.ganzithon.station.room.repository.PatternRepository;
 import com.ganzithon.station.room.repository.RoomRepository;
 import com.ganzithon.station.room.repository.SituationChipRepository;
@@ -88,6 +89,26 @@ public class RoomService {
     }
 
     /**
+     * 그 대기실의 상황 칩 중 랜덤 하나 (RM-05).
+     * <p>구현: 하빈 / 호출: realtime(가상 승객 자동 방송)</p>
+     *
+     * @throws BusinessException ROOM_NOT_FOUND 없는 대기실
+     */
+    public SituationChip getRandomSituationChip(String roomCode) {
+        return pickRandom(getSituationChipEntityList(roomCode));
+    }
+
+    /**
+     * 그 대기실의 가상 승객 2명 (RM-05). 코드 상수라 DB를 거치지 않지만, 없는 대기실은 다른 메서드와 똑같이 막습니다.
+     * <p>구현: 하빈 / 호출: realtime(가상 승객 자동 방송)</p>
+     *
+     * @throws BusinessException ROOM_NOT_FOUND 없는 대기실
+     */
+    public List<VirtualPassenger> getVirtualPassengerList(String roomCode) {
+        return VirtualPassenger.findByRoomCode(getRoomEntity(roomCode).getCode());
+    }
+
+    /**
      * 랜덤 도안 하나 (YT-01).
      * <p>구현: 하빈 / 호출: ticket(승차권 발급 때 도안 배정)</p>
      * <p>지금은 DB에서 조회합니다. 요청이 많아지면 나중에 이 Service 안에서 캐시합니다 (DOMAIN.md 7장).</p>
@@ -110,11 +131,11 @@ public class RoomService {
         return pickRandom(others.isEmpty() ? patterns : others);
     }
 
-    // 도안이 0개면 시드가 빠진 서버 설정 오류라 500으로 둡니다.
-    private Pattern pickRandom(List<Pattern> patterns) {
-        if (patterns.isEmpty()) {
-            throw new IllegalStateException("도안 시드 데이터가 없습니다.");
+    // 0개면 시드가 빠진 서버 설정 오류라 500으로 둡니다.
+    private <T> T pickRandom(List<T> items) {
+        if (items.isEmpty()) {
+            throw new IllegalStateException("시드 데이터가 없습니다.");
         }
-        return patterns.get(ThreadLocalRandom.current().nextInt(patterns.size()));
+        return items.get(ThreadLocalRandom.current().nextInt(items.size()));
     }
 }

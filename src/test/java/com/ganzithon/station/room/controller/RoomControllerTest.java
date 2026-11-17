@@ -45,7 +45,7 @@ class RoomControllerTest {
         mockMvc.perform(get("/api/v1/rooms/{roomCode}", "NO_REPLY"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.roomCode").value("NO_REPLY"))
-                .andExpect(jsonPath("$.data.name").value("읽씹"))
+                .andExpect(jsonPath("$.data.name").value("읽씹 방"))
                 .andExpect(jsonPath("$.data.slogan").value("서두르지 않아도 괜찮아요. 여기서는 마음의 속도를 낮춰도 돼요."))
                 .andExpect(jsonPath("$.data.retrospectQuestion1").value(nullValue()))
                 .andExpect(jsonPath("$.data.npcEmpathyCopy").value(nullValue()));
