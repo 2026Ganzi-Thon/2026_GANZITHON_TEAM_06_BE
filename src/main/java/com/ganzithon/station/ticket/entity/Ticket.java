@@ -21,15 +21,20 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.DynamicUpdate;
 
+import java.time.Duration;
 import java.time.Instant;
 
 /**
  * 승차권 = 기다림 한 건. 로그인 발급이면 user, 비로그인 발급이면 guestToken으로 소유자를 구분합니다.
  * 지나간 열차 수와 받은 털실 수는 저장하지 않고 startedAt으로 계산합니다.
  * 남은 털실 = 지나간 열차 수 - yarnSpent
+ * <p>{@code @DynamicUpdate}: 바뀐 컬럼만 UPDATE합니다. 종료·도안 바꾸기는 조건부 UPDATE 쿼리로 하는데,
+ * 같은 때 엔티티로 다른 값(방송 칩, 전달 시각)을 고치면 전체 컬럼 UPDATE가 status·yarn_spent를 옛 값으로 덮어쓰기 때문입니다.</p>
  */
 @Entity
+@DynamicUpdate
 @Table(name = "tickets")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -127,6 +132,45 @@ public class Ticket extends BaseTimeEntity {
     public void recordBroadcast(SituationChip situationChip, MoodChip moodChip) {
         this.lastSituationChip = situationChip;
         this.moodChip = moodChip;
+    }
+
+    /**
+     * 털실 톡톡 "역장에게 전달" (YT-04). 이미 전달했으면 처음 시각을 그대로 둡니다.
+     * 도안을 바꾸면 전달 기록이 지워지므로(다시 채워야 함) 그 뒤에는 새로 기록됩니다.
+     */
+    public Instant deliverKnitting(Instant now) {
+        if (knittingDeliveredAt == null) {
+            knittingDeliveredAt = now;
+        }
+        return knittingDeliveredAt;
+    }
+
+    /** 이 승차권의 열차·털실 계산 기준 시각. 진행 중이면 지금, 끝났으면 종료 시각 */
+    public Instant countingUntil(Instant now) {
+        return endedAt != null ? endedAt : now;
+    }
+
+    /** 남은 털실 = 받은 털실(지나간 열차 수) - 쓴 털실 */
+    public int countRemainingYarn(Instant until, Duration interval) {
+        return Math.max(0, countPassedTrains(until, interval) - yarnSpent);
+    }
+
+    /**
+     * 지나간 열차 수 (TR-04) = 받은 털실 수 (TR-02). 저장하지 않고 시작 시각으로 계산합니다.
+     * 열차 간격(interval)마다 1대씩 지나가고, 남는 시간은 버립니다.
+     *
+     * @param until 계산 기준 시각. 진행 중이면 지금, 끝났으면 종료 시각
+     */
+    public int countPassedTrains(Instant until, Duration interval) {
+        long elapsedMs = Duration.between(startedAt, until).toMillis();
+        return elapsedMs <= 0 ? 0 : (int) (elapsedMs / interval.toMillis());
+    }
+
+    /**
+     * 조각 뒷면의 "기다림 이름". 마지막으로 방송한 상황 칩 문구, 방송을 한 번도 안 했으면 방 이름.
+     */
+    public String getWaitingName() {
+        return lastSituationChip != null ? lastSituationChip.getLabel() : room.getName();
     }
 
     /**

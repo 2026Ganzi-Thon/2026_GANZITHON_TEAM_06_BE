@@ -61,6 +61,11 @@ public class RoomPresenceService {
         return roomPassengerStore.leave(sessionId).map(RoomPresenceService::toLeaveEvent);
     }
 
+    /** 기다림을 끝낸 승차권의 퇴장. 방에 없던 승차권이면 empty */
+    public Optional<RoomEvent> leaveTicket(Long ticketId, String roomCode) {
+        return roomPassengerStore.leaveTicket(ticketId, roomCode).map(RoomPresenceService::toLeaveEvent);
+    }
+
     private static RoomEvent toLeaveEvent(Departure departure) {
         Passenger passenger = departure.passenger();
         return new RoomEvent(passenger.roomCode(),
