@@ -64,6 +64,13 @@ public class RoomPassengerStore {
         return passenger == null ? Optional.empty() : remove(passenger);
     }
 
+    /** 기다림을 끝낸 승차권의 승객을 내보냅니다. 방에 없으면(접속 안 함, 이미 나감) 아무것도 하지 않습니다. */
+    public synchronized Optional<Departure> leaveTicket(Long ticketId, String roomCode) {
+        Map<Long, Passenger> members = rooms.get(roomCode);
+        Passenger passenger = members == null ? null : members.get(ticketId);
+        return passenger == null ? Optional.empty() : remove(passenger);
+    }
+
     /** 이 세션으로 접속해 있는 승객 */
     public synchronized Optional<Passenger> findBySessionId(String sessionId) {
         return Optional.ofNullable(bySession.get(sessionId));

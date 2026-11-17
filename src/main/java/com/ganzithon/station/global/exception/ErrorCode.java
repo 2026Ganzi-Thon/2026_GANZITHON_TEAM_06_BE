@@ -29,6 +29,9 @@ public enum ErrorCode {
 
     // user
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "계정을 찾을 수 없습니다."),
+    USER_NICKNAME_DUPLICATED(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다."),
+    USER_LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "닉네임 또는 PIN이 올바르지 않습니다."),
+    USER_LOGIN_LOCKED(HttpStatus.TOO_MANY_REQUESTS, "로그인에 5회 실패해 5분간 잠겼습니다. 잠시 후 다시 시도해 주세요."),
 
     // ticket
     TICKET_NOT_FOUND(HttpStatus.NOT_FOUND, "기다림을 찾을 수 없습니다."),
@@ -37,9 +40,12 @@ public enum ErrorCode {
     TICKET_NOT_ENDED(HttpStatus.CONFLICT, "아직 끝나지 않은 기다림입니다."),
     TICKET_ALREADY_CLAIMED(HttpStatus.CONFLICT, "이미 계정으로 옮긴 기다림입니다."),
     TICKET_ROOM_MISMATCH(HttpStatus.BAD_REQUEST, "이 대기실의 승차권이 아닙니다."),
+    KNITTING_NOT_ENOUGH_YARN(HttpStatus.CONFLICT, "털실이 부족합니다. 열차가 지나가면 털실을 받을 수 있어요."),
 
     // blanket
     BLANKET_PIECE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이 기다림의 담요 조각이 이미 있습니다."),
+    BLANKET_PIECE_NOT_FOUND(HttpStatus.NOT_FOUND, "담요 조각을 찾을 수 없습니다."),
+    BLANKET_PIECE_FORBIDDEN(HttpStatus.FORBIDDEN, "내 담요 조각이 아닙니다."),
 
     // realtime
     REALTIME_NOT_JOINED(HttpStatus.CONFLICT, "먼저 대기실에 입장해야 합니다."),

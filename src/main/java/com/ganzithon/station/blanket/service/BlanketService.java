@@ -2,9 +2,13 @@ package com.ganzithon.station.blanket.service;
 
 import com.ganzithon.station.blanket.dto.request.BlanketPieceCreateRequest;
 import com.ganzithon.station.blanket.dto.response.BlanketPieceResponse;
+import com.ganzithon.station.blanket.entity.BlanketPiece;
+import com.ganzithon.station.blanket.repository.BlanketPieceRepository;
 import com.ganzithon.station.global.exception.BusinessException;
+import com.ganzithon.station.global.exception.ErrorCode;
 import com.ganzithon.station.room.entity.Pattern;
 import com.ganzithon.station.ticket.entity.Ticket;
+import com.ganzithon.station.user.entity.User;
 import com.ganzithon.station.user.service.UserService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class BlanketService {
 
     private final UserService userService;
+    private final BlanketPieceRepository blanketPieceRepository;
     private final EntityManager entityManager;
 
     // ── 다른 도메인 Service용 (Controller에서 쓰지 않음) ──
@@ -42,8 +47,20 @@ public class BlanketService {
      */
     @Transactional
     public BlanketPieceResponse createPiece(BlanketPieceCreateRequest request) {
-        // TODO(상진)
-        throw new UnsupportedOperationException("TODO(상진): createPiece");
+        if (blanketPieceRepository.existsByTicketId(request.ticketId())) {
+            throw new BusinessException(ErrorCode.BLANKET_PIECE_ALREADY_EXISTS);
+        }
+        User user = userService.getUserEntity(request.userId());
+        BlanketPiece blanketPiece = BlanketPiece.builder()
+                .ticket(ticketReference(request.ticketId()))
+                .user(user)
+                .pattern(patternReference(request.patternId()))
+                .ticketNumber(request.ticketNumber())
+                .waitingName(request.waitingName())
+                .trainCount(request.trainCount())
+                .endReason(request.endReason())
+                .build();
+        return BlanketPieceResponse.from(blanketPieceRepository.save(blanketPiece));
     }
 
     /**

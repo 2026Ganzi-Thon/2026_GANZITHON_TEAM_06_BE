@@ -1,5 +1,7 @@
 package com.ganzithon.station.ticket.service;
 
+import com.ganzithon.station.blanket.dto.request.BlanketPieceCreateRequest;
+import com.ganzithon.station.blanket.dto.response.BlanketPieceResponse;
 import com.ganzithon.station.blanket.service.BlanketService;
 import com.ganzithon.station.global.config.TrainProperties;
 import com.ganzithon.station.global.exception.BusinessException;
@@ -12,20 +14,29 @@ import com.ganzithon.station.room.entity.Room;
 import com.ganzithon.station.room.entity.SituationChip;
 import com.ganzithon.station.room.service.RoomService;
 import com.ganzithon.station.ticket.dto.request.TicketCreateRequest;
+import com.ganzithon.station.ticket.dto.request.TicketEndRequest;
 import com.ganzithon.station.ticket.dto.response.BroadcastRecordResponse;
+import com.ganzithon.station.ticket.dto.response.KnittingDeliverResponse;
+import com.ganzithon.station.ticket.dto.response.KnittingPatternChangeResponse;
 import com.ganzithon.station.ticket.dto.response.PassengerTicketResponse;
 import com.ganzithon.station.ticket.dto.response.TicketClaimResponse;
 import com.ganzithon.station.ticket.dto.response.TicketCreateResponse;
+import com.ganzithon.station.ticket.dto.response.TicketEndResponse;
+import com.ganzithon.station.ticket.dto.response.TicketResponse;
+import com.ganzithon.station.ticket.dto.response.TicketStatsResponse;
 import com.ganzithon.station.ticket.entity.Ticket;
+import com.ganzithon.station.ticket.event.TicketEndedEvent;
 import com.ganzithon.station.ticket.repository.RoomTicketCounterRepository;
 import com.ganzithon.station.ticket.repository.TicketRepository;
 import com.ganzithon.station.user.entity.User;
 import com.ganzithon.station.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -46,6 +57,8 @@ public class TicketService {
     private final RoomTicketCounterRepository roomTicketCounterRepository;
     private final GuestTokenGenerator guestTokenGenerator;
     private final TrainProperties trainProperties;
+    private final TicketStatsCounter ticketStatsCounter;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ── API용 (TicketController) ──
 
@@ -68,7 +81,7 @@ public class TicketService {
         String guestToken = requester.isLoggedIn() ? null : resolveGuestToken(requester.guestToken());
         Pattern pattern = roomService.getRandomPattern();
         int ticketNumber = roomTicketCounterRepository.incrementAndGetLastNumber(room.getId());
-        Instant now = Instant.now();
+        Instant now = now();
 
         Ticket ticket = ticketRepository.save(Ticket.builder()
                 .room(room)
@@ -90,6 +103,116 @@ public class TicketService {
     }
 
     /**
+     * 내 승차권 상태 (TR-02, TR-04). GET /api/v1/tickets/{ticketId}
+     * <p>열차·털실 수는 저장하지 않고 지금(끝났으면 종료 시각) 기준으로 계산합니다.</p>
+     *
+     * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN
+     */
+    public TicketResponse getTicket(Long ticketId, Requester requester) {
+        Ticket ticket = getOwnedTicket(ticketId, requester);
+        return TicketResponse.of(ticket, now(), trainProperties.interval());
+    }
+
+    /**
+     * 털실 톡톡 도안 바꾸기 (YT-03). POST /api/v1/tickets/{ticketId}/knitting/change-pattern
+     * <ul>
+     *     <li>털실 1올을 쓰고 지금과 다른 도안으로 랜덤 교체합니다. 이미 전달했다면 전달 기록을 지웁니다 (처음부터 다시 채움)</li>
+     *     <li>"남은 털실이 있을 때만 차감"을 UPDATE 한 번으로 해서, 두 번 빠르게 눌러도 털실이 남은 것보다 많이 빠지지 않습니다</li>
+     * </ul>
+     *
+     * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN, TICKET_ALREADY_ENDED, KNITTING_NOT_ENOUGH_YARN
+     */
+    @Transactional
+    public KnittingPatternChangeResponse changeKnittingPattern(Long ticketId, Requester requester) {
+        Ticket ticket = getOwnedTicket(ticketId, requester);
+        requireWaiting(ticket);
+        Instant now = now();
+        int passedTrains = ticket.countPassedTrains(now, trainProperties.interval());
+        if (ticket.countRemainingYarn(now, trainProperties.interval()) < 1) {
+            throw new BusinessException(ErrorCode.KNITTING_NOT_ENOUGH_YARN);
+        }
+
+        Pattern newPattern = roomService.getRandomPatternExcept(ticket.getPattern().getId());
+        // 위 확인과 이 UPDATE 사이에 다른 요청이 털실을 썼거나 종료했으면 여기서 걸립니다
+        int yarnSpent = ticketRepository.spendYarnAndChangePattern(ticketId, newPattern.getId(), passedTrains)
+                .orElseThrow(() -> new BusinessException(ErrorCode.KNITTING_NOT_ENOUGH_YARN));
+        return new KnittingPatternChangeResponse(newPattern.getCode(), passedTrains - yarnSpent);
+    }
+
+    /**
+     * 털실 톡톡 "역장에게 전달" (YT-04). POST /api/v1/tickets/{ticketId}/knitting/deliver (body 없음)
+     * <p>전달 시각만 기록합니다 (새로고침해도 털실 보따리 아이콘이 남도록). 탭·채우기는 전부 프론트가 하고 서버는 받지 않습니다.
+     * 남은 털실이 1올 이상이어야 전달할 수 있습니다 (도안 바꾸기로 털실을 다 썼으면 열차가 더 지나가야 함).
+     * 이미 전달했으면 처음 시각을 그대로 돌려줍니다.</p>
+     *
+     * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN, TICKET_ALREADY_ENDED, KNITTING_NOT_ENOUGH_YARN
+     */
+    @Transactional
+    public KnittingDeliverResponse deliverKnitting(Long ticketId, Requester requester) {
+        Ticket ticket = getOwnedTicket(ticketId, requester);
+        requireWaiting(ticket);
+        Instant now = now();
+        if (ticket.countRemainingYarn(now, trainProperties.interval()) < 1) {
+            throw new BusinessException(ErrorCode.KNITTING_NOT_ENOUGH_YARN);
+        }
+        return new KnittingDeliverResponse(ticket.deliverKnitting(now));
+    }
+
+    /**
+     * 기다림 종료 (EN-01, EN-02). POST /api/v1/tickets/{ticketId}/end
+     * <ul>
+     *     <li>"진행 중일 때만 종료"를 UPDATE 한 번으로 해서, 같은 승차권을 동시에 종료해도 한 번만 성공합니다.
+     *         그래서 조각 저장({@code createPiece})까지 두 번 가지 않습니다</li>
+     *     <li>로그인 발급분(계정 소유): 조각을 계정에 저장합니다 (SV-01). 저장이 실패하면 종료도 함께 취소됩니다</li>
+     *     <li>비로그인 발급분: 저장하지 않고 조각 내용만 돌려줍니다 (SV-04). 나중에 계정으로 옮길 때는 서버의 Ticket 기록으로 다시 만듭니다</li>
+     *     <li>커밋되면 {@link TicketEndedEvent}로 전광판 통계를 올리고 대기실에서 내보냅니다</li>
+     * </ul>
+     * 회고 질문 답변(EN-03)은 저장하지 않습니다.
+     *
+     * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN, TICKET_ALREADY_ENDED
+     */
+    @Transactional
+    public TicketEndResponse endTicket(Long ticketId, Requester requester, TicketEndRequest request) {
+        Ticket ticket = getOwnedTicket(ticketId, requester);
+        Instant endedAt = now();
+        if (!ticket.isWaiting() || ticketRepository.endIfWaiting(ticketId, request.endReason(), endedAt) == 0) {
+            throw new BusinessException(ErrorCode.TICKET_ALREADY_ENDED);
+        }
+
+        int trainCount = ticket.countPassedTrains(endedAt, trainProperties.interval());
+        boolean savedToAccount = ticket.getUser() != null;
+        if (savedToAccount) {
+            blanketService.createPiece(new BlanketPieceCreateRequest(
+                    ticket.getId(),
+                    ticket.getUser().getId(),
+                    ticket.getPattern().getId(),
+                    ticket.getTicketNumber(),
+                    ticket.getWaitingName(),
+                    trainCount,
+                    request.endReason()));
+        }
+        eventPublisher.publishEvent(new TicketEndedEvent(ticket.getId(), ticket.getRoom().getCode(), request.endReason()));
+
+        return new TicketEndResponse(
+                ticket.getId(),
+                ticket.getPattern().getCode(),
+                ticket.getTicketNumber(),
+                ticket.getWaitingName(),
+                trainCount,
+                request.endReason(),
+                ticket.getStartedAt(),
+                endedAt,
+                savedToAccount);
+    }
+
+    /**
+     * 전광판 통계 (BR-04). GET /api/v1/tickets/stats. 모든 대기실 합산, 메모리 카운터라 DB를 조회하지 않습니다.
+     */
+    public TicketStatsResponse getStats() {
+        return ticketStatsCounter.snapshot();
+    }
+
+    /**
      * 비로그인으로 끝낸 기다림들을 계정으로 옮기기 (MY-08). POST /api/v1/tickets/claim
      * <p>구현: 환희 / 호출: TicketController (가입·로그인 직후 프론트가 호출)</p>
      * <p>각 승차권마다 검증</p>
@@ -101,15 +224,55 @@ public class TicketService {
      * </ul>
      * <p>통과하면 user_id, claimed_at을 채우고, Ticket 기록으로 뒷면 값을 계산해 {@code blanketService.createPiece}를 호출합니다.
      * 브라우저가 보관한 조각 내용은 믿지 않습니다. 하나라도 실패하면 전부 취소합니다 (한 트랜잭션).</p>
+     * <ul>
+     *     <li>검증과 계정 연결은 조건부 UPDATE 한 번이라, 같은 승차권을 동시에 옮겨도 한 번만 성공합니다 (나머지는 TICKET_ALREADY_CLAIMED)</li>
+     *     <li>같은 ID가 여러 번 오면 한 번만 옮깁니다. 행 잠금 순서를 맞추려고 ID 오름차순으로 처리합니다 (동시 요청끼리 교착 방지)</li>
+     *     <li>열차 수는 종료 시각 기준이라, 종료 때 브라우저가 받은 조각과 같은 값이 나옵니다</li>
+     * </ul>
      *
      * @param userId     계정 토큰의 사용자 ({@code requester.requireUserId()})
      * @param guestToken X-Guest-Token. 없으면 AUTH_LOGIN_REQUIRED가 아니라 COMMON_INVALID_INPUT
      * @param ticketIds  옮길 승차권 ID 목록
+     * @throws BusinessException COMMON_INVALID_INPUT 게스트 토큰 없음, USER_NOT_FOUND, TICKET_NOT_FOUND, TICKET_FORBIDDEN,
+     *                           TICKET_NOT_ENDED, TICKET_ALREADY_CLAIMED
      */
     @Transactional
     public TicketClaimResponse claimGuestTickets(Long userId, String guestToken, List<Long> ticketIds) {
-        // TODO(환희)
-        throw new UnsupportedOperationException("TODO(환희): claimGuestTickets");
+        if (guestToken == null) {
+            throw new BusinessException(ErrorCode.COMMON_INVALID_INPUT);
+        }
+        User user = userService.getUserEntity(userId);
+        Instant claimedAt = now();
+
+        List<BlanketPieceResponse> pieces = ticketIds.stream().distinct().sorted()
+                .map(ticketId -> claimOne(ticketId, guestToken, user, claimedAt))
+                .toList();
+        return new TicketClaimResponse(pieces);
+    }
+
+    private BlanketPieceResponse claimOne(Long ticketId, String guestToken, User user, Instant claimedAt) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TICKET_NOT_FOUND));
+        if (!guestToken.equals(ticket.getGuestToken())) {
+            throw new BusinessException(ErrorCode.TICKET_FORBIDDEN);
+        }
+        if (ticket.isWaiting()) {
+            throw new BusinessException(ErrorCode.TICKET_NOT_ENDED);
+        }
+        // 위 확인을 통과했는데 0이면 그 사이(또는 이미) 다른 요청이 옮긴 것
+        if (ticket.getClaimedAt() != null
+                || ticketRepository.claimIfClaimable(ticketId, guestToken, user, claimedAt) == 0) {
+            throw new BusinessException(ErrorCode.TICKET_ALREADY_CLAIMED);
+        }
+
+        return blanketService.createPiece(new BlanketPieceCreateRequest(
+                ticket.getId(),
+                user.getId(),
+                ticket.getPattern().getId(),
+                ticket.getTicketNumber(),
+                ticket.getWaitingName(),
+                ticket.countPassedTrains(ticket.getEndedAt(), trainProperties.interval()),
+                ticket.getEndReason()));
     }
 
     // ── realtime용 (Controller에서 쓰지 않음) ──
@@ -133,6 +296,20 @@ public class TicketService {
                 ticket.getDisplayName(),
                 ticket.getMoodChip(),
                 ticket.getStartedAt());
+    }
+
+    /**
+     * 지금 시각을 DB(timestamptz)와 같은 마이크로초까지만 씁니다.
+     * Linux에서는 Instant.now()가 나노초까지 나와서, 응답에 준 시각과 DB에서 다시 읽은 시각이 달라지기 때문입니다.
+     */
+    private static Instant now() {
+        return Instant.now().truncatedTo(ChronoUnit.MICROS);
+    }
+
+    private static void requireWaiting(Ticket ticket) {
+        if (!ticket.isWaiting()) {
+            throw new BusinessException(ErrorCode.TICKET_ALREADY_ENDED);
+        }
     }
 
     /** 요청한 사람의 승차권. 없으면 TICKET_NOT_FOUND, 남의 것이면 TICKET_FORBIDDEN */

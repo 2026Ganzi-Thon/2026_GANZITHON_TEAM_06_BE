@@ -23,11 +23,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Flyway 스키마(V1)와 시드(V2) 확인. 엔티티와 스키마가 다르면 ddl-auto=validate로 컨텍스트가 뜨지 않습니다.
+ * <p>다른 테스트와 DB 컨테이너를 같이 쓰므로(실행 순서는 정해져 있지 않음) 승차권이 없는 빈 DB를 가정하지 않습니다.
+ * 직접 넣는 승차권 번호는 발급 카운터가 닿지 않는 큰 값을 씁니다.</p>
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 @Transactional
 class SchemaSeedTest {
+
+    /** 발급 API가 매기는 번호(1부터)와 겹치지 않는 번호 */
+    private static final int FAR_TICKET_NUMBER = 1_000_000;
 
     @Autowired
     JdbcTemplate jdbcTemplate;
@@ -36,12 +41,12 @@ class SchemaSeedTest {
     EntityManager entityManager;
 
     @Test
-    void 대기실_3개가_순서대로_있고_카운터는_99() {
+    void 대기실_3개가_순서대로_있고_방마다_번호_카운터가_있다() {
         List<String> codes = jdbcTemplate.queryForList("select code from rooms order by sort_order", String.class);
         assertThat(codes).containsExactly("RESULT", "NO_REPLY", "GANZITHON_FINAL");
 
         Integer counterSum = jdbcTemplate.queryForObject(
-                "select count(*) from room_ticket_counters c join rooms r on r.id = c.room_id where c.last_number = 99",
+                "select count(*) from room_ticket_counters c join rooms r on r.id = c.room_id where c.last_number >= 99",
                 Integer.class);
         assertThat(counterSum).isEqualTo(3);
     }
@@ -67,7 +72,7 @@ class SchemaSeedTest {
 
         Ticket ticket = Ticket.builder()
                 .room(room)
-                .ticketNumber(1)
+                .ticketNumber(FAR_TICKET_NUMBER)
                 .guestToken("guest-token-for-test")
                 .moodChip(MoodChip.FLUTTERING)
                 .pattern(pattern)
@@ -131,8 +136,8 @@ class SchemaSeedTest {
         jdbcTemplate.update("""
                 insert into tickets (room_id, ticket_number, guest_token, pattern_id, status, end_reason,
                                      started_at, ended_at, yarn_spent)
-                values ((select id from rooms where code = 'RESULT'), %d, %s,
+                values ((select id from rooms where code = 'RESULT'), %d + %d, %s,
                         (select id from patterns where code = 'PATTERN_01'), %s, %s, now(), %s, %d)
-                """.formatted(ticketNumber, guestToken, status, endReason, endedAt, yarnSpent));
+                """.formatted(FAR_TICKET_NUMBER, ticketNumber, guestToken, status, endReason, endedAt, yarnSpent));
     }
 }
