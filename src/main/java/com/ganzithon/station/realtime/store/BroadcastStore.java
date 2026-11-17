@@ -26,8 +26,8 @@ public class BroadcastStore {
     private final Map<String, Deque<QueuedBroadcast>> queues = new HashMap<>();
     /** roomCode → 마지막 송출 시각 */
     private final Map<String, Long> lastDispatchedAt = new HashMap<>();
-    /** roomCode → 지금 전광판에 나온 방송의 리액션 수. 다음 방송이 나가면 새로 셉니다 */
-    private final Map<String, ReactionTally> onAirReactions = new HashMap<>();
+    /** roomCode → 마지막으로 전광판에 나간 방송과 그 리액션 수. 다음 방송이 나가면 바뀝니다 */
+    private final Map<String, OnAir> onAir = new HashMap<>();
     /** ticketId → 마지막 방송 시각. 재접속해도 쿨다운을 피할 수 없게 세션이 아니라 승차권 기준 */
     private final Map<Long, Long> lastBroadcastAt = new HashMap<>();
 
@@ -89,7 +89,7 @@ public class BroadcastStore {
             QueuedBroadcast broadcast = entry.getValue().pollFirst();
             due.add(broadcast);
             lastDispatchedAt.put(entry.getKey(), now);
-            onAirReactions.put(entry.getKey(), new ReactionTally(broadcast.broadcastId()));
+            onAir.put(entry.getKey(), new OnAir(broadcast, now));
             if (entry.getValue().isEmpty()) {
                 iterator.remove();
             }
@@ -100,10 +100,21 @@ public class BroadcastStore {
 
     /** 이 방송이 지금 그 방 전광판에 나오고 있는지 (송출 후 노출 시간 안) */
     public synchronized boolean isOnAir(String roomCode, String broadcastId, long now) {
-        Long dispatchedAt = lastDispatchedAt.get(roomCode);
-        ReactionTally tally = onAirReactions.get(roomCode);
-        return tally != null && tally.broadcastId.equals(broadcastId)
-                && dispatchedAt != null && now - dispatchedAt < displayMs;
+        OnAir current = onAirNow(roomCode, now);
+        return current != null && current.broadcast.broadcastId().equals(broadcastId);
+    }
+
+    /**
+     * 지금 그 방 전광판에 나와 있는 방송 (방송 도중에 입장한 승객에게 보여 주기용).
+     * 방송을 한 번도 안 했거나, 마지막 방송의 노출 시간이 끝났으면 empty
+     */
+    public synchronized Optional<OnAirSnapshot> findOnAir(String roomCode, long now) {
+        OnAir current = onAirNow(roomCode, now);
+        if (current == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new OnAirSnapshot(current.broadcast, displayMs - (now - current.dispatchedAt),
+                current.counts()));
     }
 
     /**
@@ -116,9 +127,14 @@ public class BroadcastStore {
         if (!isOnAir(roomCode, broadcastId, now)) {
             return Optional.empty();
         }
-        ReactionTally tally = onAirReactions.get(roomCode);
-        (reaction == Reaction.NOD ? tally.nodded : tally.awwed).add(ticketId);
-        return Optional.of(new ReactionCounts(tally.nodded.size(), tally.awwed.size()));
+        OnAir current = onAir.get(roomCode);
+        (reaction == Reaction.NOD ? current.nodded : current.awwed).add(ticketId);
+        return Optional.of(current.counts());
+    }
+
+    private OnAir onAirNow(String roomCode, long now) {
+        OnAir current = onAir.get(roomCode);
+        return current != null && now - current.dispatchedAt < displayMs ? current : null;
     }
 
     public long getCooldownMs() {
@@ -138,13 +154,29 @@ public class BroadcastStore {
     public record ReactionCounts(int nodCount, int awwCount) {
     }
 
-    private static final class ReactionTally {
-        private final String broadcastId;
+    /**
+     * 지금 전광판에 나와 있는 방송.
+     *
+     * @param broadcast   송출한 방송
+     * @param remainingMs 전광판에 남은 노출 시간
+     * @param counts      지금까지의 리액션 수
+     */
+    public record OnAirSnapshot(QueuedBroadcast broadcast, long remainingMs, ReactionCounts counts) {
+    }
+
+    private static final class OnAir {
+        private final QueuedBroadcast broadcast;
+        private final long dispatchedAt;
         private final Set<Long> nodded = new HashSet<>();
         private final Set<Long> awwed = new HashSet<>();
 
-        private ReactionTally(String broadcastId) {
-            this.broadcastId = broadcastId;
+        private OnAir(QueuedBroadcast broadcast, long dispatchedAt) {
+            this.broadcast = broadcast;
+            this.dispatchedAt = dispatchedAt;
+        }
+
+        private ReactionCounts counts() {
+            return new ReactionCounts(nodded.size(), awwed.size());
         }
     }
 }

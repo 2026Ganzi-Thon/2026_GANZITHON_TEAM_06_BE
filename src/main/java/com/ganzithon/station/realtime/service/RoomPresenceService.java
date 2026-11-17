@@ -5,9 +5,11 @@ import com.ganzithon.station.global.exception.ErrorCode;
 import com.ganzithon.station.global.security.Requester;
 import com.ganzithon.station.realtime.message.JoinMessage;
 import com.ganzithon.station.realtime.message.LeaveMessage;
+import com.ganzithon.station.realtime.message.OnAirBroadcastMessage;
 import com.ganzithon.station.realtime.message.PassengerMessage;
 import com.ganzithon.station.realtime.message.RoomStateMessage;
 import com.ganzithon.station.realtime.messaging.RoomEvent;
+import com.ganzithon.station.realtime.store.BroadcastStore;
 import com.ganzithon.station.realtime.store.Passenger;
 import com.ganzithon.station.realtime.store.RoomPassengerStore;
 import com.ganzithon.station.realtime.store.RoomPassengerStore.Departure;
@@ -29,9 +31,11 @@ public class RoomPresenceService {
 
     private final TicketService ticketService;
     private final RoomPassengerStore roomPassengerStore;
+    private final BroadcastStore broadcastStore;
 
     /**
      * 입장. 승차권이 요청한 사람의 것인지, 진행 중인지, 이 대기실의 것인지 확인한 뒤 좌석을 배정합니다.
+     * ROOM_STATE에는 지금 전광판에 나와 있는 방송도 넣어서, 방송 도중에 들어와도 남은 시간 동안 같은 방송을 봅니다.
      *
      * @throws BusinessException COMMON_INVALID_INPUT ticketId 없음, TICKET_NOT_FOUND, TICKET_FORBIDDEN,
      *                           TICKET_ALREADY_ENDED, TICKET_ROOM_MISMATCH
@@ -47,9 +51,12 @@ public class RoomPresenceService {
 
         JoinResult result = roomPassengerStore.join(ticket, sessionId);
         Passenger passenger = result.passenger();
+        long now = System.currentTimeMillis();
         RoomStateMessage roomState = RoomStateMessage.of(roomCode, passenger.ticketNumber(),
                 roomPassengerStore.getSeatCount(),
-                roomPassengerStore.findByRoomCode(roomCode).stream().map(PassengerMessage::from).toList());
+                roomPassengerStore.findByRoomCode(roomCode).stream().map(PassengerMessage::from).toList(),
+                broadcastStore.findOnAir(roomCode, now).map(OnAirBroadcastMessage::from).orElse(null),
+                now);
         Optional<RoomEvent> join = result.newlyJoined()
                 ? Optional.of(new RoomEvent(roomCode, JoinMessage.of(PassengerMessage.from(passenger), result.count())))
                 : Optional.empty();

@@ -9,6 +9,7 @@ import java.util.List;
  * @param myTicketNumber   passengers 중 내 승객
  * @param seatCount        이 대기실의 좌석 수
  * @param passengers       방에 있는 승객 전체 (나 포함)
+ * @param onAirBroadcast   지금 전광판에 나와 있는 방송. 방송을 한 번도 안 했거나 노출 시간이 끝났으면 null (기본 안내 문구)
  */
 public record RoomStateMessage(
         MessageType type,
@@ -16,10 +17,12 @@ public record RoomStateMessage(
         int myTicketNumber,
         int seatCount,
         List<PassengerMessage> passengers,
+        OnAirBroadcastMessage onAirBroadcast,
         long serverTs
 ) {
-    public static RoomStateMessage of(String roomCode, int myTicketNumber, int seatCount, List<PassengerMessage> passengers) {
+    public static RoomStateMessage of(String roomCode, int myTicketNumber, int seatCount, List<PassengerMessage> passengers,
+                                      OnAirBroadcastMessage onAirBroadcast, long serverTs) {
         return new RoomStateMessage(MessageType.ROOM_STATE, roomCode, myTicketNumber, seatCount, passengers,
-                System.currentTimeMillis());
+                onAirBroadcast, serverTs);
     }
 }
