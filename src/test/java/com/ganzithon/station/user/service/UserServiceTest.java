@@ -60,7 +60,7 @@ class UserServiceTest {
     @Test
     void PIN을_5번_연속_틀리면_잠금() {
         User user = User.builder().nickname("몽실이").pinHash("hashed").build();
-        when(userRepository.findByNickname("몽실이")).thenReturn(Optional.of(user));
+        when(userRepository.findWithLockByNickname("몽실이")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches(any(), any())).thenReturn(false);
         UserLoginRequest request = new UserLoginRequest("몽실이", "0000");
 
@@ -85,7 +85,7 @@ class UserServiceTest {
         for (int i = 0; i < 5; i++) {
             user.recordLoginFailure(now);
         }
-        when(userRepository.findByNickname("몽실이")).thenReturn(Optional.of(user));
+        when(userRepository.findWithLockByNickname("몽실이")).thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> userService.login(new UserLoginRequest("몽실이", "1234")))
                 .isInstanceOf(BusinessException.class)
@@ -96,7 +96,7 @@ class UserServiceTest {
     void 로그인_성공하면_실패_횟수_0으로_초기화() {
         User user = User.builder().nickname("몽실이").pinHash("hashed").build();
         user.recordLoginFailure(Instant.now());
-        when(userRepository.findByNickname("몽실이")).thenReturn(Optional.of(user));
+        when(userRepository.findWithLockByNickname("몽실이")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("1234", "hashed")).thenReturn(true);
         lenient().when(accountTokenProvider.issue(any())).thenReturn(new AccountToken("token", Instant.now()));
 

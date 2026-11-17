@@ -55,7 +55,7 @@ public class UserService {
      */
     @Transactional(noRollbackFor = BusinessException.class)
     public UserAuthResponse login(UserLoginRequest request) {
-        User user = userRepository.findByNickname(request.nickname())
+        User user = userRepository.findWithLockByNickname(request.nickname())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_LOGIN_FAILED));
 
         Instant now = Instant.now();
