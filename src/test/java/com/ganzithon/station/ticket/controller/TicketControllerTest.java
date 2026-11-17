@@ -37,8 +37,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class TicketControllerTest {
 
-    /** 테스트 열차 간격 (src/test/resources/config/application-local.properties) */
+    /** 테스트 열차 설정 (src/test/resources/config/application-local.properties) */
     private static final long TRAIN_INTERVAL_MS = 15_000;
+    private static final long FIRST_TRAIN_DELAY_MS = 3_000;
 
     @Autowired
     MockMvc mockMvc;
@@ -424,6 +425,7 @@ class TicketControllerTest {
                 .andExpect(jsonPath("$.data.endedAt").value(nullValue()))
                 .andExpect(jsonPath("$.data.serverTime").isString())
                 .andExpect(jsonPath("$.data.trainIntervalMs").value(15000))
+                .andExpect(jsonPath("$.data.firstTrainAt").value(matchesPattern(".*\\+09:00")))
                 .andExpect(jsonPath("$.data.nextTrainAt").value(matchesPattern(".*\\+09:00")))
                 .andExpect(jsonPath("$.data.trainCount").value(3))
                 .andExpect(jsonPath("$.data.remainingYarnCount").value(3))
@@ -607,22 +609,22 @@ class TicketControllerTest {
     }
 
     @Test
-    void 남은_털실이_없으면_전달은_409() throws Exception {
+    void 털실을_한_올도_못_받았으면_전달은_409이고_털실을_다_써도_전달은_된다() throws Exception {
         ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
         Long ticketId = ticketId(issued);
         String guestToken = guestToken(issued);
 
-        // 열차가 아직 안 지나감
+        startedTrainsAgo(ticketId, 0);
         deliver(ticketId, guestToken)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("KNITTING_NOT_ENOUGH_YARN"));
 
-        // 받은 1올을 도안 바꾸기에 다 씀
+        // 받은 1올을 도안 바꾸기에 다 써도 중간 전달은 허용 (YT-04)
         startedTrainsAgo(ticketId, 1);
-        changePattern(ticketId, guestToken).andExpect(status().isOk());
-        deliver(ticketId, guestToken)
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("KNITTING_NOT_ENOUGH_YARN"));
+        changePattern(ticketId, guestToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.remainingYarnCount").value(0));
+        deliver(ticketId, guestToken).andExpect(status().isOk());
     }
 
     @Test
@@ -670,19 +672,32 @@ class TicketControllerTest {
     }
 
     /**
-     * 공용 열차가 trains대 지나간 뒤가 되도록 시작 시각을 맞춥니다 (테스트 열차 간격 15초, epoch 기준 시각표).
-     * 다음 열차가 2초 안에 오면 지나간 뒤까지 기다려서, 요청 사이에 열차가 지나가 숫자가 바뀌지 않게 합니다.
+     * 이 승차권의 열차가 정확히 trains대 지나간 상태로 시작 시각을 맞춥니다 (테스트: 공용 15초 간격, 내 첫 열차는 시작 3초 뒤).
+     * <ul>
+     *     <li>0대: 지금 시작 (테스트가 3초 안에 끝나므로 첫 열차 전)</li>
+     *     <li>1대: 내 첫 열차만 지남 (4초 전 시작, 그 사이 공용 열차 없음)</li>
+     *     <li>2대 이상: 내 첫 열차 + 공용 열차 trains-1대</li>
+     * </ul>
+     * 공용 열차가 곧 지나가거나 방금 지나갔으면 안전한 구간이 될 때까지 기다려서, 요청 사이에 숫자가 바뀌지 않게 합니다.
      */
     private void startedTrainsAgo(Long ticketId, int trains) throws InterruptedException {
         long now = System.currentTimeMillis();
-        long untilNextTrain = TRAIN_INTERVAL_MS - Math.floorMod(now, TRAIN_INTERVAL_MS);
-        if (untilNextTrain < 2_000) {
-            Thread.sleep(untilNextTrain + 50);
+        long phase = Math.floorMod(now, TRAIN_INTERVAL_MS);
+        if (phase < FIRST_TRAIN_DELAY_MS + 1_500 || phase > TRAIN_INTERVAL_MS - 2_000) {
+            long wait = phase < FIRST_TRAIN_DELAY_MS + 1_500
+                    ? FIRST_TRAIN_DELAY_MS + 1_500 - phase
+                    : TRAIN_INTERVAL_MS - phase + FIRST_TRAIN_DELAY_MS + 1_500;
+            Thread.sleep(wait + 50);
             now = System.currentTimeMillis();
         }
-        long lastTrain = Math.floorDiv(now, TRAIN_INTERVAL_MS) * TRAIN_INTERVAL_MS;
+        long lastSharedTrain = Math.floorDiv(now, TRAIN_INTERVAL_MS) * TRAIN_INTERVAL_MS;
+        long startedAt = switch (trains) {
+            case 0 -> now;
+            case 1 -> now - FIRST_TRAIN_DELAY_MS - 1_000;
+            default -> lastSharedTrain - (trains - 1) * TRAIN_INTERVAL_MS + 1;
+        };
         jdbcTemplate.update("update tickets set started_at = ? where id = ?",
-                Timestamp.from(Instant.ofEpochMilli(lastTrain - trains * TRAIN_INTERVAL_MS + 1)), ticketId);
+                Timestamp.from(Instant.ofEpochMilli(startedAt)), ticketId);
     }
 
     private ResultActions end(Long ticketId, String guestToken, String json) throws Exception {
