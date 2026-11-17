@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
@@ -31,6 +32,23 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     int endIfWaiting(@Param("ticketId") Long ticketId,
                      @Param("endReason") EndReason endReason,
                      @Param("endedAt") Instant endedAt);
+
+    /**
+     * 도안 바꾸기 (털실 톡톡). 진행 중이고 남은 털실이 있을 때만 털실 1올을 쓰고 도안을 바꾸고 전달 기록을 지웁니다.
+     * 확인과 차감을 한 문장으로 해서, 두 번 빠르게 눌러도 남은 털실보다 많이 빠지지 않습니다.
+     * 조건에 맞으면 바뀐 쓴 털실 수를, 아니면 empty를 돌려줍니다.
+     *
+     * @param passedTrains 지금까지 받은 털실 수 (= 지나간 열차 수, 호출한 쪽이 계산)
+     */
+    @Query(value = """
+            update tickets
+            set yarn_spent = yarn_spent + 1, pattern_id = :patternId, knitting_delivered_at = null, updated_at = now()
+            where id = :ticketId and status = 'WAITING' and yarn_spent < :passedTrains
+            returning yarn_spent
+            """, nativeQuery = true)
+    Optional<Integer> spendYarnAndChangePattern(@Param("ticketId") Long ticketId,
+                                                @Param("patternId") Long patternId,
+                                                @Param("passedTrains") int passedTrains);
 
     /** 종료 사유별 종료 건수 (전광판 통계를 서버 시작 때 한 번 채울 때만 사용) */
     @Query("""

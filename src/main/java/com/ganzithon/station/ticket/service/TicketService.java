@@ -15,10 +15,13 @@ import com.ganzithon.station.room.service.RoomService;
 import com.ganzithon.station.ticket.dto.request.TicketCreateRequest;
 import com.ganzithon.station.ticket.dto.request.TicketEndRequest;
 import com.ganzithon.station.ticket.dto.response.BroadcastRecordResponse;
+import com.ganzithon.station.ticket.dto.response.KnittingDeliverResponse;
+import com.ganzithon.station.ticket.dto.response.KnittingPatternChangeResponse;
 import com.ganzithon.station.ticket.dto.response.PassengerTicketResponse;
 import com.ganzithon.station.ticket.dto.response.TicketClaimResponse;
 import com.ganzithon.station.ticket.dto.response.TicketCreateResponse;
 import com.ganzithon.station.ticket.dto.response.TicketEndResponse;
+import com.ganzithon.station.ticket.dto.response.TicketResponse;
 import com.ganzithon.station.ticket.dto.response.TicketStatsResponse;
 import com.ganzithon.station.ticket.entity.Ticket;
 import com.ganzithon.station.ticket.event.TicketEndedEvent;
@@ -95,6 +98,61 @@ public class TicketService {
             return requestedGuestToken;
         }
         return guestTokenGenerator.generate();
+    }
+
+    /**
+     * 내 승차권 상태 (TR-02, TR-04). GET /api/v1/tickets/{ticketId}
+     * <p>열차·털실 수는 저장하지 않고 지금(끝났으면 종료 시각) 기준으로 계산합니다.</p>
+     *
+     * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN
+     */
+    public TicketResponse getTicket(Long ticketId, Requester requester) {
+        Ticket ticket = getOwnedTicket(ticketId, requester);
+        return TicketResponse.of(ticket, Instant.now(), trainProperties.interval());
+    }
+
+    /**
+     * 털실 톡톡 도안 바꾸기 (YT-03). POST /api/v1/tickets/{ticketId}/knitting/change-pattern
+     * <ul>
+     *     <li>털실 1올을 쓰고 지금과 다른 도안으로 랜덤 교체합니다. 이미 전달했다면 전달 기록을 지웁니다 (처음부터 다시 채움)</li>
+     *     <li>"남은 털실이 있을 때만 차감"을 UPDATE 한 번으로 해서, 두 번 빠르게 눌러도 털실이 남은 것보다 많이 빠지지 않습니다</li>
+     * </ul>
+     *
+     * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN, TICKET_ALREADY_ENDED, KNITTING_NOT_ENOUGH_YARN
+     */
+    @Transactional
+    public KnittingPatternChangeResponse changeKnittingPattern(Long ticketId, Requester requester) {
+        Ticket ticket = getOwnedTicket(ticketId, requester);
+        requireWaiting(ticket);
+        Instant now = Instant.now();
+        int passedTrains = ticket.countPassedTrains(now, trainProperties.interval());
+        if (ticket.countRemainingYarn(now, trainProperties.interval()) < 1) {
+            throw new BusinessException(ErrorCode.KNITTING_NOT_ENOUGH_YARN);
+        }
+
+        Pattern newPattern = roomService.getRandomPatternExcept(ticket.getPattern().getId());
+        // 위 확인과 이 UPDATE 사이에 다른 요청이 털실을 썼거나 종료했으면 여기서 걸립니다
+        int yarnSpent = ticketRepository.spendYarnAndChangePattern(ticketId, newPattern.getId(), passedTrains)
+                .orElseThrow(() -> new BusinessException(ErrorCode.KNITTING_NOT_ENOUGH_YARN));
+        return new KnittingPatternChangeResponse(newPattern.getCode(), passedTrains - yarnSpent);
+    }
+
+    /**
+     * 털실 톡톡 "역장에게 전달" (YT-04). POST /api/v1/tickets/{ticketId}/knitting/deliver (body 없음)
+     * <p>전달 시각만 기록합니다 (새로고침해도 털실 보따리 아이콘이 남도록). 탭·채우기는 전부 프론트가 하고 서버는 받지 않습니다.
+     * 털실을 한 올이라도 받았어야(열차가 한 대 이상 지나감) 전달할 수 있습니다. 이미 전달했으면 처음 시각을 그대로 돌려줍니다.</p>
+     *
+     * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN, TICKET_ALREADY_ENDED, KNITTING_NOT_ENOUGH_YARN
+     */
+    @Transactional
+    public KnittingDeliverResponse deliverKnitting(Long ticketId, Requester requester) {
+        Ticket ticket = getOwnedTicket(ticketId, requester);
+        requireWaiting(ticket);
+        Instant now = Instant.now();
+        if (ticket.countPassedTrains(now, trainProperties.interval()) < 1) {
+            throw new BusinessException(ErrorCode.KNITTING_NOT_ENOUGH_YARN);
+        }
+        return new KnittingDeliverResponse(ticket.deliverKnitting(now));
     }
 
     /**
@@ -195,6 +253,12 @@ public class TicketService {
                 ticket.getDisplayName(),
                 ticket.getMoodChip(),
                 ticket.getStartedAt());
+    }
+
+    private static void requireWaiting(Ticket ticket) {
+        if (!ticket.isWaiting()) {
+            throw new BusinessException(ErrorCode.TICKET_ALREADY_ENDED);
+        }
     }
 
     /** 요청한 사람의 승차권. 없으면 TICKET_NOT_FOUND, 남의 것이면 TICKET_FORBIDDEN */

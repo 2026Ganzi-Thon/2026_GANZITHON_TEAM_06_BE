@@ -135,6 +135,27 @@ public class Ticket extends BaseTimeEntity {
     }
 
     /**
+     * 털실 톡톡 "역장에게 전달" (YT-04). 이미 전달했으면 처음 시각을 그대로 둡니다.
+     * 도안을 바꾸면 전달 기록이 지워지므로(다시 채워야 함) 그 뒤에는 새로 기록됩니다.
+     */
+    public Instant deliverKnitting(Instant now) {
+        if (knittingDeliveredAt == null) {
+            knittingDeliveredAt = now;
+        }
+        return knittingDeliveredAt;
+    }
+
+    /** 이 승차권의 열차·털실 계산 기준 시각. 진행 중이면 지금, 끝났으면 종료 시각 */
+    public Instant countingUntil(Instant now) {
+        return endedAt != null ? endedAt : now;
+    }
+
+    /** 남은 털실 = 받은 털실(지나간 열차 수) - 쓴 털실 */
+    public int countRemainingYarn(Instant until, Duration interval) {
+        return Math.max(0, countPassedTrains(until, interval) - yarnSpent);
+    }
+
+    /**
      * 지나간 열차 수 (TR-04) = 받은 털실 수 (TR-02). 저장하지 않고 시작 시각으로 계산합니다.
      * 열차 간격(interval)마다 1대씩 지나가고, 남는 시간은 버립니다.
      *

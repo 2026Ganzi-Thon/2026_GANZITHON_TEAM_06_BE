@@ -37,6 +37,7 @@ public enum ErrorCode {
     TICKET_NOT_ENDED(HttpStatus.CONFLICT, "아직 끝나지 않은 기다림입니다."),
     TICKET_ALREADY_CLAIMED(HttpStatus.CONFLICT, "이미 계정으로 옮긴 기다림입니다."),
     TICKET_ROOM_MISMATCH(HttpStatus.BAD_REQUEST, "이 대기실의 승차권이 아닙니다."),
+    KNITTING_NOT_ENOUGH_YARN(HttpStatus.CONFLICT, "털실이 부족합니다. 열차가 지나가면 털실을 받을 수 있어요."),
 
     // blanket
     BLANKET_PIECE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이 기다림의 담요 조각이 이미 있습니다."),

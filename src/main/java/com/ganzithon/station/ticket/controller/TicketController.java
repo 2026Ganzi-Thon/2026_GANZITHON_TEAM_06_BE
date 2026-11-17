@@ -5,8 +5,11 @@ import com.ganzithon.station.global.security.CurrentUser;
 import com.ganzithon.station.global.security.Requester;
 import com.ganzithon.station.ticket.dto.request.TicketCreateRequest;
 import com.ganzithon.station.ticket.dto.request.TicketEndRequest;
+import com.ganzithon.station.ticket.dto.response.KnittingDeliverResponse;
+import com.ganzithon.station.ticket.dto.response.KnittingPatternChangeResponse;
 import com.ganzithon.station.ticket.dto.response.TicketCreateResponse;
 import com.ganzithon.station.ticket.dto.response.TicketEndResponse;
+import com.ganzithon.station.ticket.dto.response.TicketResponse;
 import com.ganzithon.station.ticket.dto.response.TicketStatsResponse;
 import com.ganzithon.station.ticket.service.TicketService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,6 +47,47 @@ public class TicketController {
             @Valid @RequestBody TicketCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(ticketService.createTicket(requester, request)));
+    }
+
+    @Operation(summary = "내 승차권 상태",
+            description = """
+                    새로고침했을 때 화면을 다시 그리는 데 씁니다 (TR-02, TR-04). 내 승차권이어야 합니다.
+                    - trainCount(지나간 열차 수 = 받은 털실 수), remainingYarnCount(남은 털실)는 지금 기준으로 계산합니다.
+                      끝난 기다림이면 종료 시각 기준입니다.
+                    - knittingDeliveredAt이 있으면 털실 톡톡을 역장에게 전달한 상태입니다 (털실 보따리 아이콘).
+                    - 남의 승차권이면 403 TICKET_FORBIDDEN, 없으면 404 TICKET_NOT_FOUND""")
+    @GetMapping("/{ticketId}")
+    public ResponseEntity<ApiResponse<TicketResponse>> getTicket(
+            @PathVariable Long ticketId,
+            @CurrentUser Requester requester) {
+        return ResponseEntity.ok(ApiResponse.success(ticketService.getTicket(ticketId, requester)));
+    }
+
+    @Operation(summary = "털실 톡톡 도안 바꾸기",
+            description = """
+                    털실 1올을 쓰고 지금과 다른 도안으로 랜덤 교체합니다 (YT-03). body 없음.
+                    - 바꾸면 처음부터 다시 채웁니다. 이미 역장에게 전달했다면 전달 기록이 지워집니다.
+                    - 칸을 채우는 데는 털실을 쓰지 않습니다. 탭·채우기는 프론트가 관리합니다.
+                    - 남은 털실이 없으면 409 KNITTING_NOT_ENOUGH_YARN, 끝난 기다림이면 409 TICKET_ALREADY_ENDED""")
+    @PostMapping("/{ticketId}/knitting/change-pattern")
+    public ResponseEntity<ApiResponse<KnittingPatternChangeResponse>> changeKnittingPattern(
+            @PathVariable Long ticketId,
+            @CurrentUser Requester requester) {
+        return ResponseEntity.ok(ApiResponse.success(ticketService.changeKnittingPattern(ticketId, requester)));
+    }
+
+    @Operation(summary = "털실 톡톡 역장에게 전달",
+            description = """
+                    다 뜬 털실 톡톡을 역장에게 전달했다고 기록합니다 (YT-04). body 없음. 서버는 전달 시각만 기록합니다.
+                    - 이미 전달했으면 처음 전달한 시각을 그대로 돌려줍니다.
+                    - 털실을 한 올도 못 받았으면(열차가 아직 안 지나감) 409 KNITTING_NOT_ENOUGH_YARN,
+                      끝난 기다림이면 409 TICKET_ALREADY_ENDED
+                    - 전달하지 않아도 종료 때 조각에는 도안이 완성본으로 들어갑니다 (YT-05).""")
+    @PostMapping("/{ticketId}/knitting/deliver")
+    public ResponseEntity<ApiResponse<KnittingDeliverResponse>> deliverKnitting(
+            @PathVariable Long ticketId,
+            @CurrentUser Requester requester) {
+        return ResponseEntity.ok(ApiResponse.success(ticketService.deliverKnitting(ticketId, requester)));
     }
 
     @Operation(summary = "기다림 종료",
