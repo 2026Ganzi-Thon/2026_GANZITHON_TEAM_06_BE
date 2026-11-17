@@ -1,6 +1,8 @@
 package com.ganzithon.station.realtime.store;
 
 import com.ganzithon.station.global.config.RealtimeProperties;
+import com.ganzithon.station.realtime.message.Reaction;
+import com.ganzithon.station.realtime.store.BroadcastStore.ReactionCounts;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -70,6 +72,67 @@ class BroadcastStoreTest {
         store.enqueue(broadcast("b", "NO_REPLY"));
 
         assertThat(store.pollDue(0)).extracting(QueuedBroadcast::broadcastId).containsExactlyInAnyOrder("a", "b");
+    }
+
+    // ── 전광판 방송 리액션 수 ──
+
+    @Test
+    void 지금_나오는_방송에만_리액션을_세고_승객_한_명당_종류마다_한_번이다() {
+        store.enqueue(broadcast("a", "RESULT"));
+        store.pollDue(0);
+
+        store.countReaction("RESULT", "a", 1L, Reaction.NOD, 100);
+        store.countReaction("RESULT", "a", 1L, Reaction.NOD, 200);
+        store.countReaction("RESULT", "a", 1L, Reaction.AWW, 300);
+
+        assertThat(store.countReaction("RESULT", "a", 2L, Reaction.NOD, 400))
+                .contains(new ReactionCounts(2, 1));
+    }
+
+    @Test
+    void 노출_시간이_지났거나_다른_방송이면_세지_않는다() {
+        store.enqueue(broadcast("a", "RESULT"));
+        store.pollDue(0);
+
+        assertThat(store.countReaction("RESULT", "other", 1L, Reaction.NOD, 100)).isEmpty();
+        assertThat(store.countReaction("NO_REPLY", "a", 1L, Reaction.NOD, 100)).isEmpty();
+        assertThat(store.countReaction("RESULT", "a", 1L, Reaction.NOD, DISPLAY)).isEmpty();
+    }
+
+    @Test
+    void 다음_방송이_나가면_새로_센다() {
+        store.enqueue(broadcast("a", "RESULT"));
+        store.enqueue(broadcast("b", "RESULT"));
+        store.pollDue(0);
+        store.countReaction("RESULT", "a", 1L, Reaction.NOD, 100);
+
+        store.pollDue(DISPLAY);
+
+        assertThat(store.isOnAir("RESULT", "a", DISPLAY)).isFalse();
+        assertThat(store.countReaction("RESULT", "b", 1L, Reaction.AWW, DISPLAY + 100))
+                .contains(new ReactionCounts(0, 1));
+    }
+
+    // ── 지금 전광판에 나와 있는 방송 (방송 도중 입장용) ──
+
+    @Test
+    void 방송을_한_번도_안_한_방은_전광판_방송이_없다() {
+        assertThat(store.findOnAir("RESULT", 0)).isEmpty();
+    }
+
+    @Test
+    void 나와_있는_방송은_남은_시간과_리액션_수를_주고_노출이_끝나면_없다() {
+        store.enqueue(broadcast("a", "RESULT"));
+        store.pollDue(1_000);
+        store.countReaction("RESULT", "a", 1L, Reaction.NOD, 2_000);
+
+        BroadcastStore.OnAirSnapshot onAir = store.findOnAir("RESULT", 5_000).orElseThrow();
+
+        assertThat(onAir.broadcast().broadcastId()).isEqualTo("a");
+        assertThat(onAir.remainingMs()).isEqualTo(DISPLAY - 4_000);
+        assertThat(onAir.counts()).isEqualTo(new ReactionCounts(1, 0));
+        assertThat(store.findOnAir("RESULT", 1_000 + DISPLAY)).isEmpty();
+        assertThat(store.findOnAir("NO_REPLY", 5_000)).isEmpty();
     }
 
     private static QueuedBroadcast broadcast(String broadcastId, String roomCode) {

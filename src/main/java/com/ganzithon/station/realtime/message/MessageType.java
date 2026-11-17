@@ -15,6 +15,8 @@ public enum MessageType {
     BROADCAST_ACCEPTED,
     /** 방 전체: 전광판 방송 송출 */
     BROADCAST,
+    /** 방 전체: 1초 리액션 */
+    REACTION,
     /** 나에게만: 요청 실패 */
     ERROR
 }

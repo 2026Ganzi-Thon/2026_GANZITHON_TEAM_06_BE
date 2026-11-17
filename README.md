@@ -95,16 +95,18 @@ const client = new Client({
 |---|---|---|
 | `/app/rooms/{roomCode}/join` | `{ "ticketId": 1 }` | 입장 (ON-05). 그 대기실의 진행 중인 내 승차권이어야 합니다. 자동으로 좌석에 앉습니다 |
 | `/app/rooms/{roomCode}/broadcast` | `{ "situationChipCode": "NO_REPLY_WAITING_REPLY", "moodChip": "FLUTTERING" }` | 조합형 방송 (BR-01). 입장한 방에서만, 두 칩 모두 필수, 30초에 한 번. 고른 상태 칩으로 내 호칭이 바뀝니다 |
+| `/app/rooms/{roomCode}/reaction` | `{ "broadcastId": "...", "reaction": "NOD" }` | 1초 리액션 (BR-03). 전광판 방송에 반응합니다. `broadcastId`는 `BROADCAST`의 값, `reaction`은 `NOD`(끄덕임)·`AWW`(짠함), 둘 다 필수. 입장한 방에서만. **방송이 전광판에서 내려갔거나 1초 안에 또 보내면 에러 없이 무시합니다** |
 
 ### 서버 → 클라이언트
 
 | type | 받는 곳 | 필드 | 언제 |
 |---|---|---|---|
-| `ROOM_STATE` | `/user/queue/events` | `roomCode`, `myTicketNumber`, `seatCount`, `passengers[]`, `serverTs` | 입장 직후 나에게만. 이 메시지로 화면을 처음 그립니다 |
+| `ROOM_STATE` | `/user/queue/events` | `roomCode`, `myTicketNumber`, `seatCount`, `passengers[]`, `onAirBroadcast`, `serverTs` | 입장 직후 나에게만. 이 메시지로 화면을 처음 그립니다. `onAirBroadcast`가 있으면 전광판에 그 방송을 `remainingMs` 동안 보여 주세요 (방송 도중 입장·새로고침) |
 | `JOIN` | `/topic/rooms/{roomCode}` | `passenger`, `count`, `serverTs` | 새 승객 입장 (나 포함). 같은 승차권으로 다시 접속하면 오지 않습니다 |
 | `LEAVE` | `/topic/rooms/{roomCode}` | `ticketNumber`, `seatNumber`, `count`, `serverTs` | 승객 퇴장 (연결 끊김, 다른 방으로 이동, 기다림 종료). `seatNumber`는 비워진 좌석, 서 있던 승객이면 null |
 | `BROADCAST_ACCEPTED` | `/user/queue/events` | `broadcastId`, `queuePosition`, `cooldownMs`, `displayName`, `serverTs` | 방송 요청이 대기열에 들어감. `cooldownMs` 동안 방송 버튼을 막아 주세요 |
 | `BROADCAST` | `/topic/rooms/{roomCode}` | `broadcastId`, `ticketNumber`, `displayName`, `moodChip`, `situationChipCode`, `situationChipLabel`, `sentence`, `displayMs`, `queuedTs`, `serverTs` | 전광판 송출 (BR-02). 대기열 순서대로 `displayMs`(15초) 간격. 보낸 승객 카드의 호칭도 이 값으로 갱신하세요 |
+| `REACTION` | `/topic/rooms/{roomCode}` | `broadcastId`, `ticketNumber`, `reaction`, `nodCount`, `awwCount`, `serverTs` | 리액션 (BR-03). `ticketNumber`(반응한 양) 캐릭터 옆에 이모지를 띄우고, 전광판의 끄덕임·짠함 숫자를 `nodCount`·`awwCount`로 바꾸세요. 숫자는 그 방송에 반응한 승객 수예요 (한 명당 종류마다 1번, 다음 방송부터 새로 셈) |
 | `ERROR` | `/user/queue/events` | `code`, `message`, `retryAfterMs`(있을 때만), `serverTs` | 요청 실패. `code`는 REST와 같은 에러 코드 |
 
 `passenger` (`passengers[]`의 원소)
@@ -117,10 +119,21 @@ const client = new Client({
 | `seatNumber` | 좌석 번호 (1부터). 자리가 다 차서 서서 기다리면 null (좌석 수: 환경변수 `SEAT_COUNT`, 기본 20) |
 | `startedTs` | 기다림 시작 시각. 머문 시간 계산용 |
 
+`onAirBroadcast` (지금 전광판에 나와 있는 방송, 없으면 null)
+
+| 필드 | 설명 |
+|---|---|
+| `broadcastId`, `ticketNumber`, `displayName`, `moodChip`, `situationChipCode`, `situationChipLabel`, `sentence` | `BROADCAST`와 같음 |
+| `remainingMs` | 전광판에 남은 노출 시간. 지나면 기본 안내 문구로 돌아갑니다 |
+| `nodCount`, `awwCount` | 지금까지의 리액션 수 (`REACTION`과 같은 기준) |
+
+null이면 전광판에 기본 안내 문구를 보여 주세요: 방송을 한 번도 안 한 방, 마지막 방송의 노출 시간이 끝난 방, 서버 재시작 직후.
+
 `sentence` 예: `안내 말씀 드립니다. 104번 두근두근한 양님은 지금 '답장을 기다리는 중'입니다.`
 
 실패 `code`
 - 입장: `TICKET_NOT_FOUND`, `TICKET_FORBIDDEN`(내 승차권 아님), `TICKET_ALREADY_ENDED`, `TICKET_ROOM_MISMATCH`(다른 대기실 승차권), `COMMON_INVALID_INPUT`(형식 오류)
+- 리액션: `REALTIME_NOT_JOINED`(그 방에 입장 안 함), `COMMON_INVALID_INPUT`(`broadcastId`·`reaction` 누락, 목록에 없는 `reaction`)
 - 방송: `REALTIME_NOT_JOINED`(그 방에 입장 안 함), `BROADCAST_COOLDOWN`(+`retryAfterMs`), `BROADCAST_QUEUE_FULL`(방 대기열 20개 가득), `SITUATION_CHIP_NOT_FOUND`(그 방의 칩이 아님), `TICKET_ALREADY_ENDED`, `COMMON_INVALID_INPUT`(칩 누락)
 
 > 계정 닉네임과 `ticketId`는 다른 승객에게 보내지 않습니다.
