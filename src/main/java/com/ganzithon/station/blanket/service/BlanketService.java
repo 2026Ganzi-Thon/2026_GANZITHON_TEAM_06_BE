@@ -2,6 +2,8 @@ package com.ganzithon.station.blanket.service;
 
 import com.ganzithon.station.blanket.dto.request.BlanketPieceCreateRequest;
 import com.ganzithon.station.blanket.dto.response.BlanketPieceResponse;
+import com.ganzithon.station.blanket.dto.response.PublicCardResponse;
+import com.ganzithon.station.blanket.dto.response.PublicCardStatus;
 import com.ganzithon.station.blanket.entity.BlanketPiece;
 import com.ganzithon.station.blanket.repository.BlanketPieceRepository;
 import com.ganzithon.station.global.exception.BusinessException;
@@ -11,7 +13,9 @@ import com.ganzithon.station.ticket.entity.Ticket;
 import com.ganzithon.station.user.entity.User;
 import com.ganzithon.station.user.service.UserService;
 import jakarta.persistence.EntityManager;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +28,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class BlanketService {
+
+    /** 담요 격자(3×3)에 맞춰 카드·목록에 담는 조각 상한. 내 담요 목록 조회에서도 재사용합니다. */
+    public static final int MAX_VISIBLE_PIECE_COUNT = 9;
+
+    private static final String GUEST_MESSAGE = "게스트 유저입니다.";
+    private static final String PRIVATE_MESSAGE = "공개되어 있지 않습니다.";
+    private static final String NO_PIECE_MESSAGE = "보유한 조각이 없습니다.";
 
     private final UserService userService;
     private final BlanketPieceRepository blanketPieceRepository;
@@ -78,5 +89,37 @@ public class BlanketService {
      */
     private Pattern patternReference(Long patternId) {
         return entityManager.getReference(Pattern.class, patternId);
+    }
+
+    /**
+     * 대기실 공개 카드. 승객을 탭했을 때 보여 줄 데이터.
+     * <p>구현: 상진 / 호출: realtime (REST 없음)</p>
+     * <p>판단 순서: 비공개 → PRIVATE, 조각 없음 → NO_PIECE, 그 외 → PUBLIC. 비공개면 조각을 조회하지 않습니다.</p>
+     *
+     * @throws BusinessException USER_NOT_FOUND 없는 계정
+     */
+    public PublicCardResponse getPublicCard(Long userId) {
+        User user = userService.getUserEntity(userId);
+        if (!user.isPublic()) {
+            return new PublicCardResponse(PublicCardStatus.PRIVATE, PRIVATE_MESSAGE, null);
+        }
+
+        List<BlanketPiece> pieces = blanketPieceRepository.findByUserIdOrderByCreatedAtDescIdDesc(
+                userId, PageRequest.of(0, MAX_VISIBLE_PIECE_COUNT));
+        if (pieces.isEmpty()) {
+            return new PublicCardResponse(PublicCardStatus.NO_PIECE, NO_PIECE_MESSAGE, null);
+        }
+
+        List<String> patternCodes = pieces.stream()
+                .map(piece -> piece.getPattern().getCode())
+                .toList();
+        return new PublicCardResponse(PublicCardStatus.PUBLIC, null, patternCodes);
+    }
+
+    /**
+     * 비로그인 승객용 대기실 공개 카드. realtime이 userId가 없을 때 호출합니다.
+     */
+    public PublicCardResponse getGuestPublicCard() {
+        return new PublicCardResponse(PublicCardStatus.GUEST, GUEST_MESSAGE, null);
     }
 }
