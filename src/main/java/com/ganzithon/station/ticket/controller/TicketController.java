@@ -100,7 +100,7 @@ public class TicketController {
             description = """
                     다 뜬 털실 톡톡을 역장에게 전달했다고 기록합니다 (YT-04). body 없음. 서버는 전달 시각만 기록합니다.
                     - 이미 전달했으면 처음 전달한 시각을 그대로 돌려줍니다.
-                    - 남은 털실이 없으면(열차가 아직 안 지나갔거나 도안 바꾸기로 다 씀) 409 KNITTING_NOT_ENOUGH_YARN,
+                    - 아직 털실을 한 올도 못 받았으면(열차가 아직 안 지나감) 409 KNITTING_NOT_ENOUGH_YARN. 도안 바꾸기로 털실을 다 썼어도 전달할 수 있습니다,
                       끝난 기다림이면 409 TICKET_ALREADY_ENDED
                     - 전달하지 않아도 종료 때 조각에는 도안이 완성본으로 들어갑니다 (YT-05).""")
     @PostMapping("/{ticketId}/knitting/deliver")

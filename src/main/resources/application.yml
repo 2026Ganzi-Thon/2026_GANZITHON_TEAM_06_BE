@@ -47,6 +47,8 @@ station:
     broadcast-cooldown: 30s       # 승객 한 명의 방송 간격 (BR-01)
     broadcast-display: 15s        # 전광판 노출 시간 = 대기열 송출 간격 (BR-02)
     broadcast-queue-size: 20      # 대기실 하나의 방송 대기열 상한
+  train:
+    first-train-delay: 10s        # 입장 후 내 첫 열차까지 (TR-01). 간격은 아래 local·prod의 interval-seconds
 
 ---
 # 로컬 개발: docker-compose.yml의 Postgres 기본값과 맞춰 두었습니다.
