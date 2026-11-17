@@ -1,5 +1,6 @@
 package com.ganzithon.station.ticket.service;
 
+import com.ganzithon.station.blanket.dto.request.BlanketPieceCreateRequest;
 import com.ganzithon.station.blanket.service.BlanketService;
 import com.ganzithon.station.global.config.TrainProperties;
 import com.ganzithon.station.global.exception.BusinessException;
@@ -12,16 +13,21 @@ import com.ganzithon.station.room.entity.Room;
 import com.ganzithon.station.room.entity.SituationChip;
 import com.ganzithon.station.room.service.RoomService;
 import com.ganzithon.station.ticket.dto.request.TicketCreateRequest;
+import com.ganzithon.station.ticket.dto.request.TicketEndRequest;
 import com.ganzithon.station.ticket.dto.response.BroadcastRecordResponse;
 import com.ganzithon.station.ticket.dto.response.PassengerTicketResponse;
 import com.ganzithon.station.ticket.dto.response.TicketClaimResponse;
 import com.ganzithon.station.ticket.dto.response.TicketCreateResponse;
+import com.ganzithon.station.ticket.dto.response.TicketEndResponse;
+import com.ganzithon.station.ticket.dto.response.TicketStatsResponse;
 import com.ganzithon.station.ticket.entity.Ticket;
+import com.ganzithon.station.ticket.event.TicketEndedEvent;
 import com.ganzithon.station.ticket.repository.RoomTicketCounterRepository;
 import com.ganzithon.station.ticket.repository.TicketRepository;
 import com.ganzithon.station.user.entity.User;
 import com.ganzithon.station.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +52,8 @@ public class TicketService {
     private final RoomTicketCounterRepository roomTicketCounterRepository;
     private final GuestTokenGenerator guestTokenGenerator;
     private final TrainProperties trainProperties;
+    private final TicketStatsCounter ticketStatsCounter;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ── API용 (TicketController) ──
 
@@ -87,6 +95,60 @@ public class TicketService {
             return requestedGuestToken;
         }
         return guestTokenGenerator.generate();
+    }
+
+    /**
+     * 기다림 종료 (EN-01, EN-02). POST /api/v1/tickets/{ticketId}/end
+     * <ul>
+     *     <li>"진행 중일 때만 종료"를 UPDATE 한 번으로 해서, 같은 승차권을 동시에 종료해도 한 번만 성공합니다.
+     *         그래서 조각 저장({@code createPiece})까지 두 번 가지 않습니다</li>
+     *     <li>로그인 발급분(계정 소유): 조각을 계정에 저장합니다 (SV-01). 저장이 실패하면 종료도 함께 취소됩니다</li>
+     *     <li>비로그인 발급분: 저장하지 않고 조각 내용만 돌려줍니다 (SV-04). 나중에 계정으로 옮길 때는 서버의 Ticket 기록으로 다시 만듭니다</li>
+     *     <li>커밋되면 {@link TicketEndedEvent}로 전광판 통계를 올리고 대기실에서 내보냅니다</li>
+     * </ul>
+     * 회고 질문 답변(EN-03)은 저장하지 않습니다.
+     *
+     * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN, TICKET_ALREADY_ENDED
+     */
+    @Transactional
+    public TicketEndResponse endTicket(Long ticketId, Requester requester, TicketEndRequest request) {
+        Ticket ticket = getOwnedTicket(ticketId, requester);
+        Instant endedAt = Instant.now();
+        if (!ticket.isWaiting() || ticketRepository.endIfWaiting(ticketId, request.endReason(), endedAt) == 0) {
+            throw new BusinessException(ErrorCode.TICKET_ALREADY_ENDED);
+        }
+
+        int trainCount = ticket.countPassedTrains(endedAt, trainProperties.interval());
+        boolean savedToAccount = ticket.getUser() != null;
+        if (savedToAccount) {
+            blanketService.createPiece(new BlanketPieceCreateRequest(
+                    ticket.getId(),
+                    ticket.getUser().getId(),
+                    ticket.getPattern().getId(),
+                    ticket.getTicketNumber(),
+                    ticket.getWaitingName(),
+                    trainCount,
+                    request.endReason()));
+        }
+        eventPublisher.publishEvent(new TicketEndedEvent(ticket.getId(), ticket.getRoom().getCode(), request.endReason()));
+
+        return new TicketEndResponse(
+                ticket.getId(),
+                ticket.getPattern().getCode(),
+                ticket.getTicketNumber(),
+                ticket.getWaitingName(),
+                trainCount,
+                request.endReason(),
+                ticket.getStartedAt(),
+                endedAt,
+                savedToAccount);
+    }
+
+    /**
+     * 전광판 통계 (BR-04). GET /api/v1/tickets/stats. 모든 대기실 합산, 메모리 카운터라 DB를 조회하지 않습니다.
+     */
+    public TicketStatsResponse getStats() {
+        return ticketStatsCounter.snapshot();
     }
 
     /**

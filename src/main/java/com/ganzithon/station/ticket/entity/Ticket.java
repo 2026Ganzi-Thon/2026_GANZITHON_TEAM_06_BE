@@ -22,6 +22,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -127,6 +128,24 @@ public class Ticket extends BaseTimeEntity {
     public void recordBroadcast(SituationChip situationChip, MoodChip moodChip) {
         this.lastSituationChip = situationChip;
         this.moodChip = moodChip;
+    }
+
+    /**
+     * 지나간 열차 수 (TR-04) = 받은 털실 수 (TR-02). 저장하지 않고 시작 시각으로 계산합니다.
+     * 열차 간격(interval)마다 1대씩 지나가고, 남는 시간은 버립니다.
+     *
+     * @param until 계산 기준 시각. 진행 중이면 지금, 끝났으면 종료 시각
+     */
+    public int countPassedTrains(Instant until, Duration interval) {
+        long elapsedMs = Duration.between(startedAt, until).toMillis();
+        return elapsedMs <= 0 ? 0 : (int) (elapsedMs / interval.toMillis());
+    }
+
+    /**
+     * 조각 뒷면의 "기다림 이름". 마지막으로 방송한 상황 칩 문구, 방송을 한 번도 안 했으면 방 이름.
+     */
+    public String getWaitingName() {
+        return lastSituationChip != null ? lastSituationChip.getLabel() : room.getName();
     }
 
     /**
