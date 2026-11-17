@@ -110,14 +110,19 @@
 | `ROOM_NOT_FOUND` | 404 | 없는 대기실 |
 | `SITUATION_CHIP_NOT_FOUND` | 404 | 없거나 다른 방의 상황 칩 |
 | `USER_NOT_FOUND` | 404 | 없는 계정 |
+| `USER_NICKNAME_DUPLICATED` | 409 | 가입: 이미 사용 중인 닉네임 |
+| `USER_LOGIN_FAILED` | 401 | 로그인: 닉네임 또는 PIN이 틀림 (어느 쪽인지 알려 주지 않음) |
+| `USER_LOGIN_LOCKED` | 429 | 로그인: 5회 실패로 5분간 잠김 |
 | `TICKET_NOT_FOUND` | 404 | 없는 기다림 |
 | `TICKET_FORBIDDEN` | 403 | 내 기다림이 아님 (userId·guestToken 불일치) |
 | `TICKET_ALREADY_ENDED` | 409 | 이미 종료된 기다림 |
 | `TICKET_NOT_ENDED` | 409 | 아직 끝나지 않은 기다림 (옮기기 불가) |
 | `TICKET_ALREADY_CLAIMED` | 409 | 이미 계정으로 옮긴 기다림 |
 | `TICKET_ROOM_MISMATCH` | 400 | 다른 대기실의 승차권으로 입장 |
-| `KNITTING_NOT_ENOUGH_YARN` | 409 | 털실 톡톡: 도안 바꾸기에 쓸 남은 털실이 없음, 받은 털실 없이 역장에게 전달 |
+| `KNITTING_NOT_ENOUGH_YARN` | 409 | 털실 톡톡: 남은 털실이 없는데 도안 바꾸기·역장에게 전달 |
 | `BLANKET_PIECE_ALREADY_EXISTS` | 409 | 이 기다림의 담요 조각이 이미 있음 |
+| `BLANKET_PIECE_NOT_FOUND` | 404 | 없는 담요 조각 |
+| `BLANKET_PIECE_FORBIDDEN` | 403 | 내 담요 조각이 아님 |
 | `REALTIME_NOT_JOINED` | 409 | 대기실에 입장하지 않고 실시간 동작(방송 등) 요청 |
 | `BROADCAST_COOLDOWN` | 429 | 방송 30초 쿨다운 중 (WebSocket ERROR에 `retryAfterMs`) |
 | `BROADCAST_QUEUE_FULL` | 429 | 방송 대기열이 가득 참 |
