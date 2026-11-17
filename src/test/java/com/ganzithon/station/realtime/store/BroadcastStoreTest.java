@@ -1,6 +1,8 @@
 package com.ganzithon.station.realtime.store;
 
 import com.ganzithon.station.global.config.RealtimeProperties;
+import com.ganzithon.station.realtime.message.Reaction;
+import com.ganzithon.station.realtime.store.BroadcastStore.ReactionCounts;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -70,6 +72,45 @@ class BroadcastStoreTest {
         store.enqueue(broadcast("b", "NO_REPLY"));
 
         assertThat(store.pollDue(0)).extracting(QueuedBroadcast::broadcastId).containsExactlyInAnyOrder("a", "b");
+    }
+
+    // ── 전광판 방송 리액션 수 ──
+
+    @Test
+    void 지금_나오는_방송에만_리액션을_세고_승객_한_명당_종류마다_한_번이다() {
+        store.enqueue(broadcast("a", "RESULT"));
+        store.pollDue(0);
+
+        store.countReaction("RESULT", "a", 1L, Reaction.NOD, 100);
+        store.countReaction("RESULT", "a", 1L, Reaction.NOD, 200);
+        store.countReaction("RESULT", "a", 1L, Reaction.AWW, 300);
+
+        assertThat(store.countReaction("RESULT", "a", 2L, Reaction.NOD, 400))
+                .contains(new ReactionCounts(2, 1));
+    }
+
+    @Test
+    void 노출_시간이_지났거나_다른_방송이면_세지_않는다() {
+        store.enqueue(broadcast("a", "RESULT"));
+        store.pollDue(0);
+
+        assertThat(store.countReaction("RESULT", "other", 1L, Reaction.NOD, 100)).isEmpty();
+        assertThat(store.countReaction("NO_REPLY", "a", 1L, Reaction.NOD, 100)).isEmpty();
+        assertThat(store.countReaction("RESULT", "a", 1L, Reaction.NOD, DISPLAY)).isEmpty();
+    }
+
+    @Test
+    void 다음_방송이_나가면_새로_센다() {
+        store.enqueue(broadcast("a", "RESULT"));
+        store.enqueue(broadcast("b", "RESULT"));
+        store.pollDue(0);
+        store.countReaction("RESULT", "a", 1L, Reaction.NOD, 100);
+
+        store.pollDue(DISPLAY);
+
+        assertThat(store.isOnAir("RESULT", "a", DISPLAY)).isFalse();
+        assertThat(store.countReaction("RESULT", "b", 1L, Reaction.AWW, DISPLAY + 100))
+                .contains(new ReactionCounts(0, 1));
     }
 
     private static QueuedBroadcast broadcast(String broadcastId, String roomCode) {

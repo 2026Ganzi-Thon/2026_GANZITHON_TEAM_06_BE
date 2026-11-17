@@ -204,6 +204,10 @@ public abstract class StompIntegrationTest {
             session.send("/app/rooms/" + roomCode + "/broadcast", body);
         }
 
+        public void react(String roomCode, Map<String, Object> body) {
+            session.send("/app/rooms/" + roomCode + "/reaction", body);
+        }
+
         public Map<String, Object> nextEvent() throws InterruptedException {
             return poll(events);
         }
