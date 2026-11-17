@@ -17,6 +17,8 @@ public enum MessageType {
     BROADCAST,
     /** 방 전체: 1초 리액션 */
     REACTION,
+    /** 나에게만: 탭한 승객의 확대 카드 */
+    PASSENGER_CARD,
     /** 나에게만: 요청 실패 */
     ERROR
 }

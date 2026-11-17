@@ -89,6 +89,14 @@ public class RoomPassengerStore {
         bySession.put(updated.sessionId(), updated);
     }
 
+    /** 그 방에서 이 승차권 번호의 승객 (승객 확대 카드). 번호는 방 안에서 겹치지 않습니다 */
+    public synchronized Optional<Passenger> findByTicketNumber(String roomCode, int ticketNumber) {
+        Map<Long, Passenger> members = rooms.get(roomCode);
+        return members == null ? Optional.empty() : members.values().stream()
+                .filter(passenger -> passenger.ticketNumber() == ticketNumber)
+                .findFirst();
+    }
+
     public synchronized List<Passenger> findByRoomCode(String roomCode) {
         Map<Long, Passenger> members = rooms.get(roomCode);
         return members == null ? List.of() : List.copyOf(members.values());

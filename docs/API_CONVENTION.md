@@ -124,6 +124,7 @@
 | `BLANKET_PIECE_NOT_FOUND` | 404 | 없는 담요 조각 |
 | `BLANKET_PIECE_FORBIDDEN` | 403 | 내 담요 조각이 아님 |
 | `REALTIME_NOT_JOINED` | 409 | 대기실에 입장하지 않고 실시간 동작(방송 등) 요청 |
+| `REALTIME_PASSENGER_NOT_FOUND` | 404 | 승객 확대 카드: 그 번호의 승객이 방에 없음 (나갔거나 가상 승객) |
 | `BROADCAST_COOLDOWN` | 429 | 방송 30초 쿨다운 중 (WebSocket ERROR에 `retryAfterMs`) |
 | `BROADCAST_QUEUE_FULL` | 429 | 방송 대기열이 가득 참 |
 

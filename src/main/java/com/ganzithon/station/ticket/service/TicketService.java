@@ -2,6 +2,8 @@ package com.ganzithon.station.ticket.service;
 
 import com.ganzithon.station.blanket.dto.request.BlanketPieceCreateRequest;
 import com.ganzithon.station.blanket.dto.response.BlanketPieceResponse;
+import com.ganzithon.station.blanket.dto.response.PublicCardResponse;
+import com.ganzithon.station.blanket.dto.response.PublicCardStatus;
 import com.ganzithon.station.blanket.service.BlanketService;
 import com.ganzithon.station.global.config.TrainProperties;
 import com.ganzithon.station.global.exception.BusinessException;
@@ -19,6 +21,7 @@ import com.ganzithon.station.ticket.dto.request.TicketMoodChipUpdateRequest;
 import com.ganzithon.station.ticket.dto.response.BroadcastRecordResponse;
 import com.ganzithon.station.ticket.dto.response.KnittingDeliverResponse;
 import com.ganzithon.station.ticket.dto.response.KnittingPatternChangeResponse;
+import com.ganzithon.station.ticket.dto.response.PassengerCardResponse;
 import com.ganzithon.station.ticket.dto.response.PassengerTicketResponse;
 import com.ganzithon.station.ticket.dto.response.TicketClaimResponse;
 import com.ganzithon.station.ticket.dto.response.TicketCreateResponse;
@@ -336,6 +339,32 @@ public class TicketService {
             throw new BusinessException(ErrorCode.TICKET_FORBIDDEN);
         }
         return ticket;
+    }
+
+    /**
+     * 대기실 승객 확대 카드 (MY-05).
+     * <p>구현: 환희 / 호출: realtime(승객 탭). 같은 방 입장 여부는 realtime이 이미 확인했습니다.</p>
+     * <p>계정 승차권이면 {@code blanketService.getPublicCard}로 공개 여부와 조각 도안을, 비로그인 승차권이면 GUEST.
+     * 지나간 열차 수는 공개(PUBLIC)일 때만 넣습니다 (명세: 비공개는 머문 시간과 상태 칩만). 닉네임·종료 표식은 넣지 않습니다.</p>
+     *
+     * @throws BusinessException TICKET_NOT_FOUND
+     */
+    public PassengerCardResponse getPassengerCard(Long ticketId) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TICKET_NOT_FOUND));
+        PublicCardResponse card = ticket.getUser() == null
+                ? blanketService.getGuestPublicCard()
+                : blanketService.getPublicCard(ticket.getUser().getId());
+        boolean isPublic = card.status() == PublicCardStatus.PUBLIC;
+        Instant now = now();
+        return new PassengerCardResponse(
+                ticket.getTicketNumber(),
+                ticket.getDisplayName(),
+                ticket.getMoodChip(),
+                ticket.getStartedAt(),
+                card.status(),
+                isPublic ? card.card() : null,
+                isPublic ? ticket.countPassedTrains(ticket.countingUntil(now), trainProperties) : null);
     }
 
     /**
