@@ -74,6 +74,28 @@ class RoomPassengerStoreTest {
         assertThat(store.leave("unknown")).isEmpty();
     }
 
+    @Test
+    void 기다림을_끝낸_승차권은_좌석을_비우고_나간다() {
+        store.join(ticket(1L, "RESULT"), "s1");
+        store.join(ticket(2L, "RESULT"), "s2");
+
+        Departure departure = store.leaveTicket(1L, "RESULT").orElseThrow();
+
+        assertThat(departure.passenger().seatNumber()).isEqualTo(1);
+        assertThat(departure.remaining()).isEqualTo(1);
+        assertThat(store.findBySessionId("s1")).isEmpty();
+        assertThat(store.leave("s1")).as("나중에 연결이 끊겨도 다시 나가지 않음").isEmpty();
+    }
+
+    @Test
+    void 방에_없는_승차권의_종료는_아무것도_하지_않는다() {
+        store.join(ticket(1L, "RESULT"), "s1");
+
+        assertThat(store.leaveTicket(2L, "RESULT")).isEmpty();
+        assertThat(store.leaveTicket(1L, "NO_REPLY")).isEmpty();
+        assertThat(store.findByRoomCode("RESULT")).hasSize(1);
+    }
+
     private static PassengerTicketResponse ticket(Long ticketId, String roomCode) {
         return new PassengerTicketResponse(ticketId, roomCode, ticketId.intValue(), ticketId + "번 양", null, Instant.now());
     }
