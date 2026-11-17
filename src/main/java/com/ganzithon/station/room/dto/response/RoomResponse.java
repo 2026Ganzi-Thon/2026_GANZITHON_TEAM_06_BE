@@ -7,7 +7,7 @@ public record RoomResponse(
         @Schema(description = "대기실 코드. 단건 조회 경로에 씁니다", example = "RESULT")
         String roomCode,
 
-        @Schema(description = "대기실 이름", example = "결과발표")
+        @Schema(description = "대기실 이름", example = "결과 발표 방")
         String name,
 
         @Schema(description = "대기실 상단 슬로건", example = "결과를 기다리는 자리, 잠시 마음을 가만히 내려놓아도 돼요.")

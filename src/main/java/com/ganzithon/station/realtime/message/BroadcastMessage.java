@@ -28,6 +28,11 @@ public record BroadcastMessage(
 ) {
     private static final String SENTENCE_FORMAT = "안내 말씀 드립니다. %s님은 지금 '%s'입니다.";
 
+    /** 전광판 문장. 예: 안내 말씀 드립니다. 104번 두근두근한 양님은 지금 '답장 기다리는 중'입니다. */
+    public static String sentence(QueuedBroadcast broadcast) {
+        return SENTENCE_FORMAT.formatted(broadcast.displayName(), broadcast.situationChipLabel());
+    }
+
     public static BroadcastMessage of(QueuedBroadcast broadcast, long displayMs, long serverTs) {
         return new BroadcastMessage(
                 MessageType.BROADCAST,
@@ -37,7 +42,7 @@ public record BroadcastMessage(
                 broadcast.moodChip(),
                 broadcast.situationChipCode(),
                 broadcast.situationChipLabel(),
-                SENTENCE_FORMAT.formatted(broadcast.displayName(), broadcast.situationChipLabel()),
+                sentence(broadcast),
                 displayMs,
                 broadcast.queuedTs(),
                 serverTs);
