@@ -65,6 +65,12 @@ public class BroadcastStore {
         return queue != null && queue.size() >= queueSize;
     }
 
+    /** 송출을 기다리는 방송이 없는지 (가상 승객은 이때만 방송해서 실제 방송이 우선) */
+    public synchronized boolean isQueueEmpty(String roomCode) {
+        Deque<QueuedBroadcast> queue = queues.get(roomCode);
+        return queue == null || queue.isEmpty();
+    }
+
     /** @return 대기 순번 (1이면 다음 차례) */
     public synchronized int enqueue(QueuedBroadcast broadcast) {
         Deque<QueuedBroadcast> queue = queues.computeIfAbsent(broadcast.roomCode(), roomCode -> new ArrayDeque<>());
