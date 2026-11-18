@@ -169,7 +169,7 @@ class TicketControllerTest {
 
         end(ticketId, guestToken(issued), "{\"endReason\": \"LET_GO\"}")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.waitingName").value("시험 결과 기다리는 중"));
+                .andExpect(jsonPath("$.data.waitingName").value("시험 결과를 기다리는 중"));
     }
 
     @Test

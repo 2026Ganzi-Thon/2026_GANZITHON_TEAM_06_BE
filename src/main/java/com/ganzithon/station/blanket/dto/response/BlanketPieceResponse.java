@@ -22,7 +22,7 @@ public record BlanketPieceResponse(
         @Schema(description = "뒷면: 승차권 번호", example = "104")
         int ticketNumber,
 
-        @Schema(description = "뒷면: 기다림 이름", example = "면접 보고 기다리는 중")
+        @Schema(description = "뒷면: 기다림 이름", example = "면접 결과를 기다리는 중")
         String waitingName,
 
         @Schema(description = "뒷면: 지나간 열차 수", example = "12")

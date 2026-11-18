@@ -127,4 +127,20 @@ class RoomServiceTest {
                 .containsExactly("읽음 표시 뜬 지 한참째", "답장을 기다리는 중", "보낸 메시지에 소식이 없는 중",
                         "대화창을 열었다 닫았다 하는 중", "아직 1이 안 사라진 중", "보낸 시간을 자꾸 다시 보는 중");
     }
+
+    @Test
+    void 결과_발표_방_상황_칩은_기획_확정_문구_순서() {
+        assertThat(roomService.getSituationChipEntityList("RESULT"))
+                .extracting(SituationChip::getLabel)
+                .containsExactly("면접 결과를 기다리는 중", "서류 결과를 기다리는 중", "시험 결과를 기다리는 중",
+                        "합격 발표를 기다리는 중", "발표를 앞둔 아침", "피드백을 기다리는 중", "회신을 기다리는 중");
+    }
+
+    @Test
+    void 결선_방_상황_칩은_기획_확정_문구_순서() {
+        assertThat(roomService.getSituationChipEntityList("GANZITHON_FINAL"))
+                .extracting(SituationChip::getLabel)
+                .containsExactly("발표를 마치고 결과를 기다리는 중", "심사 결과를 기다리는 중", "밤샘 작업을 마치고 기다리는 중",
+                        "데모를 마치고 기다리는 중", "마지막 커밋을 마치고 기다리는 중");
+    }
 }
