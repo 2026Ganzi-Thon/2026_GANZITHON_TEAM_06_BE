@@ -23,7 +23,7 @@ public record TicketCreateResponse(
         @Schema(description = "상태 칩. 건너뛰었으면 null", example = "FLUTTERING", nullable = true)
         MoodChip moodChip,
 
-        @Schema(description = "털실 톡톡 도안 코드 (발급 때 랜덤 배정)", example = "PATTERN_01")
+        @Schema(description = "털실 톡톡 도안 코드 (발급 때 랜덤 배정)", example = "PATTERN_HEART")
         String patternCode,
 
         @Schema(description = "게스트 토큰. 비로그인 발급일 때만 있고, 이후 요청에 X-Guest-Token 헤더로 보냅니다. 로그인 발급이면 null",

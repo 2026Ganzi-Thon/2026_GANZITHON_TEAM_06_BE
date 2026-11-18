@@ -72,7 +72,8 @@ class RoomServiceTest {
     void 랜덤_도안은_시드_도안_중_하나() {
         for (int i = 0; i < 20; i++) {
             assertThat(roomService.getRandomPattern().getCode())
-                    .isIn("PATTERN_01", "PATTERN_02", "PATTERN_03");
+                    .isIn("PATTERN_HEART", "PATTERN_CLOUD", "PATTERN_STAR", "PATTERN_MOUNTAIN", "PATTERN_SPROUT",
+                            "PATTERN_FOREST", "PATTERN_TRAIN", "PATTERN_MOON", "PATTERN_FLOWER");
         }
     }
 

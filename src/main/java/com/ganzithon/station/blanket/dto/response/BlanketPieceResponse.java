@@ -16,7 +16,7 @@ public record BlanketPieceResponse(
         @Schema(description = "기다림(승차권) ID", example = "104")
         Long ticketId,
 
-        @Schema(description = "앞면 도안 코드", example = "PATTERN_01")
+        @Schema(description = "앞면 도안 코드", example = "PATTERN_HEART")
         String patternCode,
 
         @Schema(description = "뒷면: 승차권 번호", example = "104")

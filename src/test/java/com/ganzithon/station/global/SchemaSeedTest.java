@@ -59,15 +59,16 @@ class SchemaSeedTest {
     }
 
     @Test
-    void 도안_임시_3개() {
-        List<String> codes = jdbcTemplate.queryForList("select code from patterns order by code", String.class);
-        assertThat(codes).containsExactly("PATTERN_01", "PATTERN_02", "PATTERN_03");
+    void 도안_확정_9개() {
+        List<String> codes = jdbcTemplate.queryForList("select code from patterns order by id", String.class);
+        assertThat(codes).containsExactly("PATTERN_HEART", "PATTERN_CLOUD", "PATTERN_STAR", "PATTERN_MOUNTAIN",
+                "PATTERN_SPROUT", "PATTERN_FOREST", "PATTERN_TRAIN", "PATTERN_MOON", "PATTERN_FLOWER");
     }
 
     @Test
     void 게스트_승차권을_엔티티로_저장하고_읽을_수_있음() {
         Room room = findRoom("RESULT");
-        Pattern pattern = entityManager.createQuery("select p from Pattern p where p.code = 'PATTERN_01'", Pattern.class)
+        Pattern pattern = entityManager.createQuery("select p from Pattern p where p.code = 'PATTERN_HEART'", Pattern.class)
                 .getSingleResult();
 
         Ticket ticket = Ticket.builder()
@@ -137,7 +138,7 @@ class SchemaSeedTest {
                 insert into tickets (room_id, ticket_number, guest_token, pattern_id, status, end_reason,
                                      started_at, ended_at, yarn_spent)
                 values ((select id from rooms where code = 'RESULT'), %d + %d, %s,
-                        (select id from patterns where code = 'PATTERN_01'), %s, %s, now(), %s, %d)
+                        (select id from patterns where code = 'PATTERN_HEART'), %s, %s, now(), %s, %d)
                 """.formatted(FAR_TICKET_NUMBER, ticketNumber, guestToken, status, endReason, endedAt, yarnSpent));
     }
 }

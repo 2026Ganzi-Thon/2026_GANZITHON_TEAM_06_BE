@@ -104,12 +104,12 @@ class BlanketServiceTest {
 
         BlanketPiece latestPiece = mock(BlanketPiece.class);
         Pattern latestPattern = mock(Pattern.class);
-        when(latestPattern.getCode()).thenReturn("PATTERN_02");
+        when(latestPattern.getCode()).thenReturn("PATTERN_CLOUD");
         when(latestPiece.getPattern()).thenReturn(latestPattern);
 
         BlanketPiece olderPiece = mock(BlanketPiece.class);
         Pattern olderPattern = mock(Pattern.class);
-        when(olderPattern.getCode()).thenReturn("PATTERN_01");
+        when(olderPattern.getCode()).thenReturn("PATTERN_HEART");
         when(olderPiece.getPattern()).thenReturn(olderPattern);
 
         when(blanketPieceRepository.findByUserIdOrderByCreatedAtDescIdDesc(
@@ -119,6 +119,6 @@ class BlanketServiceTest {
         PublicCardResponse response = blanketService.getPublicCard(1L);
 
         assertThat(response.status()).isEqualTo(PublicCardStatus.PUBLIC);
-        assertThat(response.card()).containsExactly("PATTERN_02", "PATTERN_01");
+        assertThat(response.card()).containsExactly("PATTERN_CLOUD", "PATTERN_HEART");
     }
 }

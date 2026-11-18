@@ -109,7 +109,7 @@ public abstract class StompIntegrationTest {
                                              end_reason, started_at, ended_at)
                         select r.id,
                                (select coalesce(max(t.ticket_number), 0) + 1 from tickets t where t.room_id = r.id),
-                               ?, ?, (select id from patterns where code = 'PATTERN_01'), ?, ?, now(), ?
+                               ?, ?, (select id from patterns where code = 'PATTERN_HEART'), ?, ?, now(), ?
                         from rooms r
                         where r.code = ?
                         returning id
