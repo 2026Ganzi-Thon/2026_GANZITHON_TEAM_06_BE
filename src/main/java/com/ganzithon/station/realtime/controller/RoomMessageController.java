@@ -5,10 +5,12 @@ import com.ganzithon.station.global.exception.ErrorCode;
 import com.ganzithon.station.global.security.StompAuthChannelInterceptor;
 import com.ganzithon.station.realtime.message.BroadcastRequest;
 import com.ganzithon.station.realtime.message.ErrorMessage;
+import com.ganzithon.station.realtime.message.PassengerCardRequest;
 import com.ganzithon.station.realtime.message.ReactionRequest;
 import com.ganzithon.station.realtime.message.RoomJoinRequest;
 import com.ganzithon.station.realtime.messaging.RoomMessenger;
 import com.ganzithon.station.realtime.service.BroadcastService;
+import com.ganzithon.station.realtime.service.PassengerCardService;
 import com.ganzithon.station.realtime.service.ReactionService;
 import com.ganzithon.station.realtime.service.RoomPresenceService;
 import com.ganzithon.station.realtime.service.RoomPresenceService.JoinOutcome;
@@ -32,6 +34,7 @@ public class RoomMessageController {
 
     private final RoomPresenceService roomPresenceService;
     private final BroadcastService broadcastService;
+    private final PassengerCardService passengerCardService;
     private final ReactionService reactionService;
     private final RoomMessenger roomMessenger;
 
@@ -60,6 +63,14 @@ public class RoomMessageController {
     public void reaction(@DestinationVariable String roomCode, @Payload ReactionRequest request,
                          SimpMessageHeaderAccessor headers) {
         reactionService.react(roomCode, headers.getSessionId(), request).ifPresent(roomMessenger::toRoom);
+    }
+
+    /** 승객 확대 카드 (MY-05). 나에게만 PASSENGER_CARD */
+    @MessageMapping("/rooms/{roomCode}/passenger-card")
+    public void passengerCard(@DestinationVariable String roomCode, @Payload PassengerCardRequest request,
+                              SimpMessageHeaderAccessor headers) {
+        String sessionId = headers.getSessionId();
+        roomMessenger.toSession(sessionId, passengerCardService.getCard(roomCode, sessionId, request));
     }
 
     @MessageExceptionHandler(BusinessException.class)

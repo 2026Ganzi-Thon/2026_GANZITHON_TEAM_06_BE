@@ -77,6 +77,14 @@ public class RoomPassengerStore {
         return Optional.ofNullable(bySession.get(sessionId));
     }
 
+    /** 그 방에서 이 승차권 번호의 승객 (승객 확대 카드). 번호는 방 안에서 겹치지 않습니다 */
+    public synchronized Optional<Passenger> findByTicketNumber(String roomCode, int ticketNumber) {
+        Map<Long, Passenger> members = rooms.get(roomCode);
+        return members == null ? Optional.empty() : members.values().stream()
+                .filter(passenger -> passenger.ticketNumber() == ticketNumber)
+                .findFirst();
+    }
+
     /** 방송으로 상태 칩이 바뀐 승객의 호칭을 고칩니다. 그 사이 나갔으면 아무것도 하지 않습니다. */
     public synchronized void updateMood(Long ticketId, String roomCode, String displayName, MoodChip moodChip) {
         Map<Long, Passenger> members = rooms.get(roomCode);
