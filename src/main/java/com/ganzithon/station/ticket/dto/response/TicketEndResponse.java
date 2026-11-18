@@ -13,7 +13,7 @@ public record TicketEndResponse(
         @Schema(description = "승차권 ID. 나중에 계정으로 옮길 때(POST /api/v1/tickets/claim) 이 값을 보냅니다", example = "1")
         Long ticketId,
 
-        @Schema(description = "앞면 도안 코드", example = "PATTERN_01")
+        @Schema(description = "앞면 도안 코드", example = "PATTERN_HEART")
         String patternCode,
 
         @Schema(description = "뒷면: 승차권 번호", example = "104")

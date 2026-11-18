@@ -12,7 +12,7 @@ public record BlanketPieceListItem(
         @Schema(description = "조각 ID", example = "1")
         Long blanketPieceId,
 
-        @Schema(description = "앞면 도안 코드", example = "PATTERN_01")
+        @Schema(description = "앞면 도안 코드", example = "PATTERN_HEART")
         String patternCode,
 
         @Schema(description = "조각을 만든 시각", example = "2026-11-11T21:30:00+09:00")

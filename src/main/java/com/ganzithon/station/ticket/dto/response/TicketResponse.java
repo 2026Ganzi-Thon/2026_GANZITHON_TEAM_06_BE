@@ -28,7 +28,7 @@ public record TicketResponse(
         @Schema(description = "상태 칩. 없으면 null", example = "FLUTTERING", nullable = true)
         MoodChip moodChip,
 
-        @Schema(description = "털실 톡톡 도안 코드. 도안을 바꿨으면 바꾼 도안", example = "PATTERN_02")
+        @Schema(description = "털실 톡톡 도안 코드. 도안을 바꿨으면 바꾼 도안", example = "PATTERN_CLOUD")
         String patternCode,
 
         @Schema(description = "WAITING(기다리는 중) 또는 ENDED(종료)", example = "WAITING")
