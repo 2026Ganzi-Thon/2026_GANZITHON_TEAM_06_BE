@@ -15,6 +15,7 @@ import com.ganzithon.station.room.entity.SituationChip;
 import com.ganzithon.station.room.service.RoomService;
 import com.ganzithon.station.ticket.dto.request.TicketCreateRequest;
 import com.ganzithon.station.ticket.dto.request.TicketEndRequest;
+import com.ganzithon.station.ticket.dto.request.TicketMoodChipUpdateRequest;
 import com.ganzithon.station.ticket.dto.response.BroadcastRecordResponse;
 import com.ganzithon.station.ticket.dto.response.KnittingDeliverResponse;
 import com.ganzithon.station.ticket.dto.response.KnittingPatternChangeResponse;
@@ -92,7 +93,7 @@ public class TicketService {
                 .pattern(pattern)
                 .startedAt(now)
                 .build());
-        return TicketCreateResponse.of(ticket, now, trainProperties.interval());
+        return TicketCreateResponse.of(ticket, now, trainProperties);
     }
 
     private String resolveGuestToken(String requestedGuestToken) {
@@ -110,7 +111,22 @@ public class TicketService {
      */
     public TicketResponse getTicket(Long ticketId, Requester requester) {
         Ticket ticket = getOwnedTicket(ticketId, requester);
-        return TicketResponse.of(ticket, now(), trainProperties.interval());
+        return TicketResponse.of(ticket, now(), trainProperties);
+    }
+
+    /**
+     * 상태 칩 바꾸기 (ON-03, 온보딩용). PATCH /api/v1/tickets/{ticketId}
+     * <p>S04에서 뒤로 가서 칩을 다시 고르면 재발급 대신 이걸 부릅니다. 번호·도안은 그대로라 안 쓰는 승차권이 생기지 않습니다.
+     * 대기실 안에서 칩을 바꾸는 방법은 방송(BR-01)입니다. 여기서 바꾸면 다른 승객 화면의 카드는 다음 방송·재입장 때 맞춰집니다.</p>
+     *
+     * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN, TICKET_ALREADY_ENDED
+     */
+    @Transactional
+    public TicketResponse changeMoodChip(Long ticketId, Requester requester, TicketMoodChipUpdateRequest request) {
+        Ticket ticket = getOwnedTicket(ticketId, requester);
+        requireWaiting(ticket);
+        ticket.changeMoodChip(request.moodChip());
+        return TicketResponse.of(ticket, now(), trainProperties);
     }
 
     /**
@@ -127,8 +143,8 @@ public class TicketService {
         Ticket ticket = getOwnedTicket(ticketId, requester);
         requireWaiting(ticket);
         Instant now = now();
-        int passedTrains = ticket.countPassedTrains(now, trainProperties.interval());
-        if (ticket.countRemainingYarn(now, trainProperties.interval()) < 1) {
+        int passedTrains = ticket.countPassedTrains(now, trainProperties);
+        if (ticket.countRemainingYarn(now, trainProperties) < 1) {
             throw new BusinessException(ErrorCode.KNITTING_NOT_ENOUGH_YARN);
         }
 
@@ -142,8 +158,8 @@ public class TicketService {
     /**
      * 털실 톡톡 "역장에게 전달" (YT-04). POST /api/v1/tickets/{ticketId}/knitting/deliver (body 없음)
      * <p>전달 시각만 기록합니다 (새로고침해도 털실 보따리 아이콘이 남도록). 탭·채우기는 전부 프론트가 하고 서버는 받지 않습니다.
-     * 남은 털실이 1올 이상이어야 전달할 수 있습니다 (도안 바꾸기로 털실을 다 썼으면 열차가 더 지나가야 함).
-     * 이미 전달했으면 처음 시각을 그대로 돌려줍니다.</p>
+     * 첫 털실을 받았어야(열차 1대 이상) 전달할 수 있습니다 (YT-03 선행조건). 명세상 중간 전달도 허용이라 도안 바꾸기로
+     * 털실을 다 썼어도 전달할 수 있습니다. 이미 전달했으면 처음 시각을 그대로 돌려줍니다.</p>
      *
      * @throws BusinessException TICKET_NOT_FOUND, TICKET_FORBIDDEN, TICKET_ALREADY_ENDED, KNITTING_NOT_ENOUGH_YARN
      */
@@ -152,7 +168,7 @@ public class TicketService {
         Ticket ticket = getOwnedTicket(ticketId, requester);
         requireWaiting(ticket);
         Instant now = now();
-        if (ticket.countRemainingYarn(now, trainProperties.interval()) < 1) {
+        if (ticket.countPassedTrains(now, trainProperties) < 1) {
             throw new BusinessException(ErrorCode.KNITTING_NOT_ENOUGH_YARN);
         }
         return new KnittingDeliverResponse(ticket.deliverKnitting(now));
@@ -179,7 +195,7 @@ public class TicketService {
             throw new BusinessException(ErrorCode.TICKET_ALREADY_ENDED);
         }
 
-        int trainCount = ticket.countPassedTrains(endedAt, trainProperties.interval());
+        int trainCount = ticket.countPassedTrains(endedAt, trainProperties);
         boolean savedToAccount = ticket.getUser() != null;
         if (savedToAccount) {
             blanketService.createPiece(new BlanketPieceCreateRequest(
@@ -271,7 +287,7 @@ public class TicketService {
                 ticket.getPattern().getId(),
                 ticket.getTicketNumber(),
                 ticket.getWaitingName(),
-                ticket.countPassedTrains(ticket.getEndedAt(), trainProperties.interval()),
+                ticket.countPassedTrains(ticket.getEndedAt(), trainProperties),
                 ticket.getEndReason()));
     }
 

@@ -14,6 +14,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
@@ -21,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -33,6 +36,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class TicketControllerTest {
+
+    /** 테스트 열차 설정 (src/test/resources/config/application-local.properties) */
+    private static final long TRAIN_INTERVAL_MS = 15_000;
+    private static final long FIRST_TRAIN_DELAY_MS = 3_000;
 
     @Autowired
     MockMvc mockMvc;
@@ -56,7 +63,8 @@ class TicketControllerTest {
                 .andExpect(jsonPath("$.data.guestToken").value(matchesPattern("[A-Za-z0-9_-]{43}")))
                 .andExpect(jsonPath("$.data.startedAt").value(matchesPattern(".*\\+09:00")))
                 .andExpect(jsonPath("$.data.serverTime").isString())
-                .andExpect(jsonPath("$.data.trainIntervalMs").value(15000));
+                .andExpect(jsonPath("$.data.trainIntervalMs").value(15000))
+                .andExpect(jsonPath("$.data.nextTrainAt").value(matchesPattern(".*\\+09:00")));
     }
 
     @Test
@@ -139,7 +147,7 @@ class TicketControllerTest {
     void 비로그인_종료는_조각_내용을_주고_계정에_저장하지_않는다() throws Exception {
         ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
         Long ticketId = ticketId(issued);
-        startedSecondsAgo(ticketId, 46);
+        startedTrainsAgo(ticketId, 3);
 
         end(ticketId, guestToken(issued), "{\"endReason\": \"ANSWERED\"}")
                 .andExpect(status().isOk())
@@ -183,7 +191,7 @@ class TicketControllerTest {
                 .andReturn().getResponse().getContentAsString();
         Long ticketId = ((Number) JsonPath.read(body, "$.data.ticketId")).longValue();
         int ticketNumber = JsonPath.read(body, "$.data.ticketNumber");
-        startedSecondsAgo(ticketId, 31);
+        startedTrainsAgo(ticketId, 2);
         Long patternId = jdbcTemplate.queryForObject("select pattern_id from tickets where id = ?", Long.class, ticketId);
         String roomName = jdbcTemplate.queryForObject("select name from rooms where code = 'NO_REPLY'", String.class);
 
@@ -262,7 +270,7 @@ class TicketControllerTest {
         String guestToken = guestToken(firstIssued);
         Long first = ticketId(firstIssued);
         Long second = ticketId(issue("{\"roomCode\": \"NO_REPLY\"}", guestToken));
-        startedSecondsAgo(first, 46);
+        startedTrainsAgo(first, 3);
         String firstEnded = end(first, guestToken, "{\"endReason\": \"ANSWERED\"}")
                 .andReturn().getResponse().getContentAsString();
         end(second, guestToken, "{\"endReason\": \"LET_GO\"}").andExpect(status().isOk());
@@ -405,7 +413,7 @@ class TicketControllerTest {
         ResultActions issued = issue("{\"roomCode\": \"RESULT\", \"moodChip\": \"CALM\"}");
         Long ticketId = ticketId(issued);
         String guestToken = guestToken(issued);
-        startedSecondsAgo(ticketId, 46);
+        startedTrainsAgo(ticketId, 3);
 
         getTicket(ticketId, guestToken)
                 .andExpect(status().isOk())
@@ -417,6 +425,8 @@ class TicketControllerTest {
                 .andExpect(jsonPath("$.data.endedAt").value(nullValue()))
                 .andExpect(jsonPath("$.data.serverTime").isString())
                 .andExpect(jsonPath("$.data.trainIntervalMs").value(15000))
+                .andExpect(jsonPath("$.data.firstTrainAt").value(matchesPattern(".*\\+09:00")))
+                .andExpect(jsonPath("$.data.nextTrainAt").value(matchesPattern(".*\\+09:00")))
                 .andExpect(jsonPath("$.data.trainCount").value(3))
                 .andExpect(jsonPath("$.data.remainingYarnCount").value(3))
                 .andExpect(jsonPath("$.data.knittingDeliveredAt").value(nullValue()));
@@ -427,7 +437,7 @@ class TicketControllerTest {
         ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
         Long ticketId = ticketId(issued);
         String guestToken = guestToken(issued);
-        startedSecondsAgo(ticketId, 46);
+        startedTrainsAgo(ticketId, 3);
         end(ticketId, guestToken, "{\"endReason\": \"ANSWERED\"}").andExpect(status().isOk());
         // 종료 후 시간이 흘러도 열차 수가 늘지 않아야 함: 시작·종료를 같이 1분 앞으로 옮김
         jdbcTemplate.update("update tickets set started_at = started_at - interval '1 minute', "
@@ -451,6 +461,82 @@ class TicketControllerTest {
                 .andExpect(jsonPath("$.error.code").value("TICKET_FORBIDDEN"));
     }
 
+    // ── 상태 칩 바꾸기 (온보딩) ──
+
+    @Test
+    void 상태_칩을_바꾸면_번호와_도안은_그대로이고_호칭이_바뀐다() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\", \"moodChip\": \"FLUTTERING\"}");
+        Long ticketId = ticketId(issued);
+        int ticketNumber = ticketNumber(issued);
+        String patternCode = JsonPath.read(issued.andReturn().getResponse().getContentAsString(), "$.data.patternCode");
+
+        changeMoodChip(ticketId, guestToken(issued), "{\"moodChip\": \"TIRED\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.ticketId").value(ticketId))
+                .andExpect(jsonPath("$.data.ticketNumber").value(ticketNumber))
+                .andExpect(jsonPath("$.data.patternCode").value(patternCode))
+                .andExpect(jsonPath("$.data.moodChip").value("TIRED"))
+                .andExpect(jsonPath("$.data.displayName").value(ticketNumber + "번 지친 양"))
+                .andExpect(jsonPath("$.data.status").value("WAITING"));
+
+        assertThat(jdbcTemplate.queryForObject("select mood_chip from tickets where id = ?", String.class, ticketId))
+                .isEqualTo("TIRED");
+    }
+
+    @Test
+    void 상태_칩을_null로_보내거나_빼면_칩_없이_번호와_양만() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\", \"moodChip\": \"CALM\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        int ticketNumber = ticketNumber(issued);
+
+        changeMoodChip(ticketId, guestToken, "{\"moodChip\": null}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.moodChip").value(nullValue()))
+                .andExpect(jsonPath("$.data.displayName").value(ticketNumber + "번 양"));
+
+        changeMoodChip(ticketId, guestToken, "{\"moodChip\": \"CALM\"}").andExpect(status().isOk());
+        changeMoodChip(ticketId, guestToken, "{}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.moodChip").value(nullValue()));
+    }
+
+    @Test
+    void 끝난_기다림의_상태_칩은_바꿀_수_없다() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String guestToken = guestToken(issued);
+        end(ticketId, guestToken, "{\"endReason\": \"LET_GO\"}").andExpect(status().isOk());
+
+        changeMoodChip(ticketId, guestToken, "{\"moodChip\": \"TIRED\"}")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("TICKET_ALREADY_ENDED"));
+    }
+
+    @Test
+    void 남의_승차권이면_403_없으면_404_목록에_없는_칩이면_400() throws Exception {
+        ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
+        Long ticketId = ticketId(issued);
+        String otherGuestToken = guestToken(issue("{\"roomCode\": \"RESULT\"}"));
+
+        changeMoodChip(ticketId, otherGuestToken, "{\"moodChip\": \"TIRED\"}")
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("TICKET_FORBIDDEN"));
+        changeMoodChip(Long.MAX_VALUE, otherGuestToken, "{\"moodChip\": \"TIRED\"}")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("TICKET_NOT_FOUND"));
+        changeMoodChip(ticketId, guestToken(issued), "{\"moodChip\": \"HAPPY\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("COMMON_INVALID_INPUT"));
+    }
+
+    private ResultActions changeMoodChip(Long ticketId, String guestToken, String json) throws Exception {
+        return mockMvc.perform(patch("/api/v1/tickets/{ticketId}", ticketId)
+                .header(GuestTokenHeader.NAME, guestToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json));
+    }
+
     // ── 털실 톡톡 ──
 
     @Test
@@ -458,7 +544,7 @@ class TicketControllerTest {
         ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
         Long ticketId = ticketId(issued);
         String guestToken = guestToken(issued);
-        startedSecondsAgo(ticketId, 31); // 털실 2올
+        startedTrainsAgo(ticketId, 2); // 털실 2올
         String firstPattern = JsonPath.read(issued.andReturn().getResponse().getContentAsString(), "$.data.patternCode");
 
         String secondPattern = JsonPath.read(changePattern(ticketId, guestToken)
@@ -485,7 +571,7 @@ class TicketControllerTest {
         ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
         Long ticketId = ticketId(issued);
         String guestToken = guestToken(issued);
-        startedSecondsAgo(ticketId, 16);
+        startedTrainsAgo(ticketId, 1);
         String changed = JsonPath.read(changePattern(ticketId, guestToken)
                 .andReturn().getResponse().getContentAsString(), "$.data.patternCode");
 
@@ -498,7 +584,7 @@ class TicketControllerTest {
         ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
         Long ticketId = ticketId(issued);
         String guestToken = guestToken(issued);
-        startedSecondsAgo(ticketId, 16);
+        startedTrainsAgo(ticketId, 1);
 
         String first = JsonPath.read(deliver(ticketId, guestToken)
                 .andExpect(status().isOk())
@@ -514,7 +600,7 @@ class TicketControllerTest {
         ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
         Long ticketId = ticketId(issued);
         String guestToken = guestToken(issued);
-        startedSecondsAgo(ticketId, 16);
+        startedTrainsAgo(ticketId, 1);
         deliver(ticketId, guestToken).andExpect(status().isOk());
 
         changePattern(ticketId, guestToken).andExpect(status().isOk());
@@ -523,22 +609,22 @@ class TicketControllerTest {
     }
 
     @Test
-    void 남은_털실이_없으면_전달은_409() throws Exception {
+    void 털실을_한_올도_못_받았으면_전달은_409이고_털실을_다_써도_전달은_된다() throws Exception {
         ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
         Long ticketId = ticketId(issued);
         String guestToken = guestToken(issued);
 
-        // 열차가 아직 안 지나감
+        startedTrainsAgo(ticketId, 0);
         deliver(ticketId, guestToken)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("KNITTING_NOT_ENOUGH_YARN"));
 
-        // 받은 1올을 도안 바꾸기에 다 씀
-        startedSecondsAgo(ticketId, 16);
-        changePattern(ticketId, guestToken).andExpect(status().isOk());
-        deliver(ticketId, guestToken)
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error.code").value("KNITTING_NOT_ENOUGH_YARN"));
+        // 받은 1올을 도안 바꾸기에 다 써도 중간 전달은 허용 (YT-04)
+        startedTrainsAgo(ticketId, 1);
+        changePattern(ticketId, guestToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.remainingYarnCount").value(0));
+        deliver(ticketId, guestToken).andExpect(status().isOk());
     }
 
     @Test
@@ -546,7 +632,7 @@ class TicketControllerTest {
         ResultActions issued = issue("{\"roomCode\": \"RESULT\"}");
         Long ticketId = ticketId(issued);
         String guestToken = guestToken(issued);
-        startedSecondsAgo(ticketId, 31);
+        startedTrainsAgo(ticketId, 2);
         end(ticketId, guestToken, "{\"endReason\": \"LET_GO\"}").andExpect(status().isOk());
 
         changePattern(ticketId, guestToken)
@@ -560,7 +646,7 @@ class TicketControllerTest {
     @Test
     void 남의_승차권으로_털실_톡톡을_하면_403() throws Exception {
         Long ticketId = ticketId(issue("{\"roomCode\": \"RESULT\"}"));
-        startedSecondsAgo(ticketId, 31);
+        startedTrainsAgo(ticketId, 2);
         String otherGuestToken = guestToken(issue("{\"roomCode\": \"RESULT\"}"));
 
         changePattern(ticketId, otherGuestToken)
@@ -585,10 +671,33 @@ class TicketControllerTest {
                 .header(GuestTokenHeader.NAME, guestToken));
     }
 
-    /** 열차 간격 15초 기준: 16초 전 → 열차 1대, 31초 전 → 2대, 46초 전 → 3대 */
-    private void startedSecondsAgo(Long ticketId, int seconds) {
-        jdbcTemplate.update("update tickets set started_at = now() - make_interval(secs => ?) where id = ?",
-                seconds, ticketId);
+    /**
+     * 이 승차권의 열차가 정확히 trains대 지나간 상태로 시작 시각을 맞춥니다 (테스트: 공용 15초 간격, 내 첫 열차는 시작 3초 뒤).
+     * <ul>
+     *     <li>0대: 지금 시작 (테스트가 3초 안에 끝나므로 첫 열차 전)</li>
+     *     <li>1대: 내 첫 열차만 지남 (4초 전 시작, 그 사이 공용 열차 없음)</li>
+     *     <li>2대 이상: 내 첫 열차 + 공용 열차 trains-1대</li>
+     * </ul>
+     * 공용 열차가 곧 지나가거나 방금 지나갔으면 안전한 구간이 될 때까지 기다려서, 요청 사이에 숫자가 바뀌지 않게 합니다.
+     */
+    private void startedTrainsAgo(Long ticketId, int trains) throws InterruptedException {
+        long now = System.currentTimeMillis();
+        long phase = Math.floorMod(now, TRAIN_INTERVAL_MS);
+        if (phase < FIRST_TRAIN_DELAY_MS + 1_500 || phase > TRAIN_INTERVAL_MS - 2_000) {
+            long wait = phase < FIRST_TRAIN_DELAY_MS + 1_500
+                    ? FIRST_TRAIN_DELAY_MS + 1_500 - phase
+                    : TRAIN_INTERVAL_MS - phase + FIRST_TRAIN_DELAY_MS + 1_500;
+            Thread.sleep(wait + 50);
+            now = System.currentTimeMillis();
+        }
+        long lastSharedTrain = Math.floorDiv(now, TRAIN_INTERVAL_MS) * TRAIN_INTERVAL_MS;
+        long startedAt = switch (trains) {
+            case 0 -> now;
+            case 1 -> now - FIRST_TRAIN_DELAY_MS - 1_000;
+            default -> lastSharedTrain - (trains - 1) * TRAIN_INTERVAL_MS + 1;
+        };
+        jdbcTemplate.update("update tickets set started_at = ? where id = ?",
+                Timestamp.from(Instant.ofEpochMilli(startedAt)), ticketId);
     }
 
     private ResultActions end(Long ticketId, String guestToken, String json) throws Exception {

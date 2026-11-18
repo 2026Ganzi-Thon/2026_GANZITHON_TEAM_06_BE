@@ -43,10 +43,12 @@ station:
   jwt:
     expiration: 7d                # 계정 토큰 유효 기간. 리프레시 토큰 없음
   realtime:
-    seat-count: ${SEAT_COUNT:20}  # 대기실 하나의 좌석 수. 다 차면 서서 기다림
+    seat-count: ${SEAT_COUNT:36}  # 대기실 하나의 좌석 수 (디자인: 의자 12개 × 3명). 다 차면 서서 기다림
     broadcast-cooldown: 30s       # 승객 한 명의 방송 간격 (BR-01)
     broadcast-display: 15s        # 전광판 노출 시간 = 대기열 송출 간격 (BR-02)
     broadcast-queue-size: 20      # 대기실 하나의 방송 대기열 상한
+  train:
+    first-train-delay: 10s        # 입장 후 내 첫 열차까지 (TR-01). 간격은 아래 local·prod의 interval-seconds
 
 ---
 # 로컬 개발: docker-compose.yml의 Postgres 기본값과 맞춰 두었습니다.
@@ -71,8 +73,8 @@ station:
     # 로컬 전용 값. 배포에서는 절대 쓰지 않습니다.
     secret: ${JWT_SECRET:local-only-secret-change-me-0123456789abcdef}
   train:
-    # 1시간을 몇 초로 줄일지. 15초 → 15초마다 열차 1대 = 털실 1올
-    interval-seconds: ${TRAIN_INTERVAL_SECONDS:15}
+    # 열차 간격(초). 열차 1대 = 털실 1올. 실제 서비스 30분(1800), 시연 영상 20초. 로컬 기본은 20
+    interval-seconds: ${TRAIN_INTERVAL_SECONDS:20}
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS:http://localhost:*}
 

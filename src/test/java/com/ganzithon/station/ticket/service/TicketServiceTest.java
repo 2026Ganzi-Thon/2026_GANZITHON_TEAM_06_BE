@@ -122,7 +122,15 @@ class TicketServiceTest {
         TicketCreateResponse ticket = ticketService.createTicket(
                 new Requester(null, null), new TicketCreateRequest("RESULT", null));
         Requester owner = new Requester(null, ticket.guestToken());
-        jdbcTemplate.update("update tickets set started_at = now() - interval '31 seconds' where id = ?", ticket.ticketId());
+        // 열차 2대 = 내 첫 열차 + 공용 열차 1대 (테스트 간격 15초). 다음 공용 열차가 2초 안이면 지나간 뒤까지 기다림
+        long now = System.currentTimeMillis();
+        if (15_000 - Math.floorMod(now, 15_000L) < 2_000) {
+            Thread.sleep(15_000 - Math.floorMod(now, 15_000L) + 50);
+            now = System.currentTimeMillis();
+        }
+        jdbcTemplate.update("update tickets set started_at = ? where id = ?",
+                java.sql.Timestamp.from(java.time.Instant.ofEpochMilli(Math.floorDiv(now, 15_000L) * 15_000 - 15_000 + 1)),
+                ticket.ticketId());
 
         CountDownLatch start = new CountDownLatch(1);
         List<Future<?>> futures = new ArrayList<>();

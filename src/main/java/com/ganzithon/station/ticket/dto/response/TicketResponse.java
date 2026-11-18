@@ -1,12 +1,12 @@
 package com.ganzithon.station.ticket.dto.response;
 
+import com.ganzithon.station.global.config.TrainProperties;
 import com.ganzithon.station.room.entity.MoodChip;
 import com.ganzithon.station.ticket.entity.EndReason;
 import com.ganzithon.station.ticket.entity.Ticket;
 import com.ganzithon.station.ticket.entity.TicketStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -47,8 +47,14 @@ public record TicketResponse(
                 example = "2026-11-17T21:33:00+09:00")
         Instant serverTime,
 
-        @Schema(description = "열차 간격(ms). 지나간 열차 수 = 경과 시간 ÷ 이 값", example = "15000")
+        @Schema(description = "공용 열차 간격(ms). 모든 승객이 같은 시각표: epoch부터 이 값마다 1대 (30분이면 매시 00분·30분)", example = "1800000")
         long trainIntervalMs,
+
+        @Schema(description = "내 첫 열차 시각 = 시작 + 10초 (TR-01). 이 열차는 내 화면에만 지나갑니다", example = "2026-11-17T21:30:10+09:00")
+        Instant firstTrainAt,
+
+        @Schema(description = "다음 열차 시각. 내 첫 열차가 아직이면 그 시각, 아니면 다음 공용 열차", example = "2026-11-17T22:00:00+09:00")
+        Instant nextTrainAt,
 
         @Schema(description = "지금까지 지나간 열차 수 (= 받은 털실 수). 끝났으면 종료 시각 기준", example = "12")
         int trainCount,
@@ -60,7 +66,7 @@ public record TicketResponse(
                 nullable = true)
         Instant knittingDeliveredAt
 ) {
-    public static TicketResponse of(Ticket ticket, Instant serverTime, Duration trainInterval) {
+    public static TicketResponse of(Ticket ticket, Instant serverTime, TrainProperties train) {
         Instant until = ticket.countingUntil(serverTime);
         return new TicketResponse(
                 ticket.getId(),
@@ -74,9 +80,11 @@ public record TicketResponse(
                 ticket.getStartedAt(),
                 ticket.getEndedAt(),
                 serverTime,
-                trainInterval.toMillis(),
-                ticket.countPassedTrains(until, trainInterval),
-                ticket.countRemainingYarn(until, trainInterval),
+                train.interval().toMillis(),
+                ticket.firstTrainAt(train),
+                ticket.nextTrainAt(serverTime, train),
+                ticket.countPassedTrains(until, train),
+                ticket.countRemainingYarn(until, train),
                 ticket.getKnittingDeliveredAt());
     }
 }

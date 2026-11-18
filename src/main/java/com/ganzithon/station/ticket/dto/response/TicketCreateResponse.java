@@ -1,10 +1,10 @@
 package com.ganzithon.station.ticket.dto.response;
 
+import com.ganzithon.station.global.config.TrainProperties;
 import com.ganzithon.station.room.entity.MoodChip;
 import com.ganzithon.station.ticket.entity.Ticket;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.time.Duration;
 import java.time.Instant;
 
 public record TicketCreateResponse(
@@ -37,10 +37,18 @@ public record TicketCreateResponse(
                 example = "2026-11-16T21:30:00+09:00")
         Instant serverTime,
 
-        @Schema(description = "열차 간격(ms). 지나간 열차 수 = 경과 시간 ÷ 이 값 (털실 수도 같음)", example = "15000")
-        long trainIntervalMs
+        @Schema(description = "공용 열차 간격(ms). 모든 승객이 같은 시각표: epoch부터 이 값마다 1대 (30분이면 매시 00분·30분)",
+                example = "1800000")
+        long trainIntervalMs,
+
+        @Schema(description = "내 첫 열차 시각 = 시작 + 10초 (TR-01). 이 열차는 내 화면에만 지나갑니다", example = "2026-11-16T21:30:10+09:00")
+        Instant firstTrainAt,
+
+        @Schema(description = "다음 열차 시각. 내 첫 열차가 아직이면 그 시각, 아니면 다음 공용 열차. "
+                + "내 열차 수(= 털실 수) = 내 첫 열차 1대 + 시작 뒤에 지나간 공용 열차", example = "2026-11-16T21:30:10+09:00")
+        Instant nextTrainAt
 ) {
-    public static TicketCreateResponse of(Ticket ticket, Instant serverTime, Duration trainInterval) {
+    public static TicketCreateResponse of(Ticket ticket, Instant serverTime, TrainProperties train) {
         return new TicketCreateResponse(
                 ticket.getId(),
                 ticket.getRoom().getCode(),
@@ -51,6 +59,8 @@ public record TicketCreateResponse(
                 ticket.getGuestToken(),
                 ticket.getStartedAt(),
                 serverTime,
-                trainInterval.toMillis());
+                train.interval().toMillis(),
+                ticket.firstTrainAt(train),
+                ticket.nextTrainAt(serverTime, train));
     }
 }

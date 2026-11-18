@@ -1,5 +1,6 @@
 package com.ganzithon.station.ticket.entity;
 
+import com.ganzithon.station.global.config.TrainProperties;
 import com.ganzithon.station.global.entity.BaseTimeEntity;
 import com.ganzithon.station.room.entity.MoodChip;
 import com.ganzithon.station.room.entity.Pattern;
@@ -23,7 +24,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.DynamicUpdate;
 
-import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -135,6 +135,13 @@ public class Ticket extends BaseTimeEntity {
     }
 
     /**
+     * 온보딩에서 상태 칩을 다시 고름 (ON-03). null이면 칩 없이 "104번 양". 번호·도안은 그대로입니다.
+     */
+    public void changeMoodChip(MoodChip moodChip) {
+        this.moodChip = moodChip;
+    }
+
+    /**
      * 털실 톡톡 "역장에게 전달" (YT-04). 이미 전달했으면 처음 시각을 그대로 둡니다.
      * 도안을 바꾸면 전달 기록이 지워지므로(다시 채워야 함) 그 뒤에는 새로 기록됩니다.
      */
@@ -151,19 +158,39 @@ public class Ticket extends BaseTimeEntity {
     }
 
     /** 남은 털실 = 받은 털실(지나간 열차 수) - 쓴 털실 */
-    public int countRemainingYarn(Instant until, Duration interval) {
-        return Math.max(0, countPassedTrains(until, interval) - yarnSpent);
+    public int countRemainingYarn(Instant until, TrainProperties train) {
+        return Math.max(0, countPassedTrains(until, train) - yarnSpent);
     }
 
     /**
-     * 지나간 열차 수 (TR-04) = 받은 털실 수 (TR-02). 저장하지 않고 시작 시각으로 계산합니다.
-     * 열차 간격(interval)마다 1대씩 지나가고, 남는 시간은 버립니다.
+     * 지나간 열차 수 (TR-04) = 받은 털실 수 (TR-02). 저장하지 않고 계산합니다. 열차는 두 종류입니다.
+     * <ul>
+     *     <li><b>내 첫 열차</b> (TR-01): 승차권 시작 후 firstTrainDelay(10초)에 1대. 첫 털실·털실 톡톡 안내(YT-02)를 바로 받게 하는 온보딩 열차.
+     *         승차권마다 한 번뿐이라 나갔다 들어와도 늘지 않고, 새 승차권은 털실이 0부터 다시 시작합니다</li>
+     *     <li><b>공용 열차</b>: 모든 대기실·승객이 같은 시각표. epoch(1970-01-01T00:00Z)부터 interval마다 1대 (30분이면 매시 00분·30분).
+     *         같은 방 사람들이 같은 열차를 같이 보고, 재배포해도 시각표가 바뀌지 않습니다. 시작 뒤에 지나간 것만 셉니다</li>
+     * </ul>
      *
      * @param until 계산 기준 시각. 진행 중이면 지금, 끝났으면 종료 시각
      */
-    public int countPassedTrains(Instant until, Duration interval) {
-        long elapsedMs = Duration.between(startedAt, until).toMillis();
-        return elapsedMs <= 0 ? 0 : (int) (elapsedMs / interval.toMillis());
+    public int countPassedTrains(Instant until, TrainProperties train) {
+        long intervalMs = train.interval().toMillis();
+        long shared = Math.floorDiv(until.toEpochMilli(), intervalMs) - Math.floorDiv(startedAt.toEpochMilli(), intervalMs);
+        int first = until.isBefore(firstTrainAt(train)) ? 0 : 1;
+        return (int) Math.max(0, shared) + first;
+    }
+
+    /** 내 첫 열차 시각 = 승차권 시작 + firstTrainDelay (TR-01) */
+    public Instant firstTrainAt(TrainProperties train) {
+        return startedAt.plus(train.firstTrainDelay());
+    }
+
+    /** now 다음에 지나갈 열차 시각. 내 첫 열차가 아직이고 더 빠르면 그 시각, 아니면 다음 공용 열차 */
+    public Instant nextTrainAt(Instant now, TrainProperties train) {
+        long intervalMs = train.interval().toMillis();
+        Instant nextShared = Instant.ofEpochMilli((Math.floorDiv(now.toEpochMilli(), intervalMs) + 1) * intervalMs);
+        Instant first = firstTrainAt(train);
+        return now.isBefore(first) && first.isBefore(nextShared) ? first : nextShared;
     }
 
     /**
