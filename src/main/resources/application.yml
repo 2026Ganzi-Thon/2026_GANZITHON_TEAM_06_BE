@@ -52,7 +52,7 @@ station:
     min-interval: 40s             # 다음 가상 방송까지 40~90초 랜덤
     max-interval: 90s
   realtime:
-    seat-count: ${SEAT_COUNT:36}  # 대기실 하나의 좌석 수 (디자인: 의자 12개 × 3명). 다 차면 서서 기다림
+    seat-count: ${SEAT_COUNT:30}  # 대기실 하나의 좌석 수 (디자인: 의자 10개 × 3명). 다 차면 서서 기다림
     broadcast-cooldown: 30s       # 승객 한 명의 방송 간격 (BR-01)
     broadcast-display: 15s        # 전광판 노출 시간 = 대기열 송출 간격 (BR-02)
     broadcast-queue-size: 20      # 대기실 하나의 방송 대기열 상한
