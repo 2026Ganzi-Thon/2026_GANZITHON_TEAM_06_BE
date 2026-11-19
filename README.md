@@ -1,26 +1,144 @@
-# 간이역 대기실 (2026 간지톤 6팀) — Backend
+<div align="center">
 
-내가 바꿀 수 없는 기다림(합격 발표, 답장)을 **2D 간이역 대기실에서 다른 승객과 함께 보내는 서비스**의 백엔드입니다.
-승차권을 받고 대기실에 앉아 있으면 열차가 지날 때마다 털실을 받고, 기다림이 끝나면 담요 조각 1칸을 받습니다.
+# 🚉 간이역 대기실 — Backend
 
-- API 문서 (Swagger): `{서버 주소}/swagger-ui/index.html`
-- 배포 서버: `https://api.wait-station.online`
+**내가 바꿀 수 없는 기다림을, 2D 간이역 대기실에서 다른 승객과 함께**
 
-## 기술 스택
+2026 간지톤 6팀 백엔드 저장소
 
-| 구분 | 사용 |
+<br>
+
+![Java](https://img.shields.io/badge/Java_21-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot_4.1-6DB33F?style=flat-square&logo=springboot&logoColor=white)
+![Spring Security](https://img.shields.io/badge/Spring_Security-6DB33F?style=flat-square&logo=springsecurity&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL_17-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=flat-square&logo=flyway&logoColor=white)
+![WebSocket](https://img.shields.io/badge/WebSocket_STOMP-010101?style=flat-square&logo=socketdotio&logoColor=white)
+<br>
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square&logo=amazonwebservices&logoColor=white)
+![Terraform](https://img.shields.io/badge/Terraform-844FBA?style=flat-square&logo=terraform&logoColor=white)
+![Caddy](https://img.shields.io/badge/Caddy-1F88C0?style=flat-square&logo=caddy&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
+
+<br>
+
+[🌐 배포 서버](https://api.wait-station.online) · [📖 Swagger](https://api.wait-station.online/swagger-ui/index.html) · [📡 WebSocket 명세](#-websocket-메시지-명세) · [📚 문서](#-문서)
+
+</div>
+
+<br>
+
+## 🐑 서비스 소개
+
+합격 발표, 답장처럼 **내가 어떻게 할 수 없는 기다림**을 혼자 견디지 않도록, 간이역 대기실에서 다른 승객(양)들과 함께 기다리는 서비스예요.
+
+```
+🎫 승차권 발급 → 🪑 자동 착석 → 🚂 열차가 지날 때마다 털실 🧶 → 🏁 기다림 종료 → 🧩 담요 조각 선물 → 🛏️ 내 담요
+```
+
+| | 기능 | 설명 |
+|:---:|---|---|
+| 🎫 | **승차권과 대기실** | 대기실과 상태 칩을 고르면 승차권과 호칭(예: `104번 두근두근한 양`)을 받아요 |
+| 🪑 | **자동 착석** | 입장하면 서버가 빈 좌석에 앉혀 줘요. 30석이 다 차면 입석으로 기다려요 |
+| 🚂 | **열차와 털실** | 공용 시각표로 30분마다 열차가 지나고, 열차 1대마다 털실 1올을 받아요 |
+| 📢 | **조합형 방송** | 상황 칩과 상태 칩을 골라 전광판에 방송해요 (30초 쿨다운, 15초 노출) |
+| 👍 | **1초 리액션** | 전광판 방송에 끄덕끄덕 · 전해요로 반응하고, 방 전체에 바로 전해져요 |
+| 🧶 | **털실 톡톡** | 받은 털실로 도안을 뜨고 역장에게 전달해요 |
+| 🧩 | **담요 조각** | 기다림이 끝나면 담요 조각 1칸을 받아 내 담요에 모아요. 공개하면 다른 승객이 볼 수 있어요 |
+| 🤖 | **가상 승객** | 대기실이 비어 보이지 않도록 가상 승객이 자동으로 방송해요 |
+
+<br>
+
+## 🛠 기술 스택
+
+| 구분 | 기술 |
 |---|---|
-| 언어 · 프레임워크 | Java 21, Spring Boot 4 (Jackson 3) |
-| DB | PostgreSQL 17, Spring Data JPA, Flyway |
-| 인증 | Spring Security, JWT(계정 토큰) + 게스트 토큰 |
-| 실시간 | WebSocket (STOMP, 내장 Simple Broker) |
-| 문서 | springdoc-openapi (Swagger) |
-| 테스트 | JUnit 5, MockMvc, Testcontainers |
-| 배포 | Docker Compose, Caddy, AWS EC2 · ECR · CodeDeploy, Terraform, GitHub Actions |
+| **Language · Framework** | Java 21, Spring Boot 4.1 (Spring MVC, Jackson 3), Lombok |
+| **Database** | PostgreSQL 17, Spring Data JPA, Flyway (스키마 · 시드 데이터 마이그레이션) |
+| **Auth** | Spring Security, OAuth2 Resource Server (JWT · HS256, Nimbus), 게스트 토큰 |
+| **Realtime** | Spring WebSocket, STOMP (내장 Simple Broker), 인메모리 저장소 |
+| **API Docs** | springdoc-openapi 3 (Swagger UI) |
+| **Test** | JUnit 5, MockMvc, Spring WebSocket Test, Testcontainers (PostgreSQL) |
+| **Build** | Gradle 9 |
+| **Infra** | AWS EC2 · ECR · S3 · CodeDeploy · SSM Session Manager, Terraform |
+| **Runtime** | Docker, Docker Compose (app · db · caddy), Caddy (HTTPS 자동 발급) |
+| **CI/CD** | GitHub Actions (PR 빌드 · 테스트, `dev` 자동 배포) |
 
-## 로컬 실행
+<br>
 
-**Docker Desktop을 먼저 켜 두세요.** 로컬 DB와 테스트가 모두 Docker를 씁니다.
+## 🏗 아키텍처
+
+```mermaid
+flowchart LR
+    FE["🖥️ Frontend"]
+
+    subgraph EC2["AWS EC2 · Docker Compose"]
+        direction LR
+        CADDY["Caddy<br/>HTTPS"]
+        APP["Spring Boot<br/>REST · STOMP"]
+        DB[("PostgreSQL 17")]
+        CADDY --> APP --> DB
+    end
+
+    FE -- "HTTPS (REST)<br/>WSS (/ws)" --> CADDY
+
+    subgraph CICD["CI/CD"]
+        direction LR
+        GHA["GitHub Actions"] --> ECR["ECR<br/>이미지"]
+        GHA --> S3["S3<br/>배포 번들"] --> CD["CodeDeploy"]
+    end
+
+    CD -. "배포 · 헬스 체크 · 롤백" .-> EC2
+    ECR -. "image pull" .-> EC2
+```
+
+- `dev`에 머지되면 GitHub Actions가 이미지를 ECR에 올리고, CodeDeploy가 서버에 배포해요. 헬스 체크(`/actuator/health`)가 실패하면 이전 버전으로 자동 롤백돼요.
+- 서버는 SSH 없이 SSM Session Manager로만 접속하고, 80/443 포트만 열려 있어요.
+- 실시간 대기실(접속 승객, 좌석, 방송 대기열, 리액션)은 DB 없이 메모리에서만 관리해요.
+
+자세한 내용은 [INFRA.md](docs/INFRA.md)를 봐 주세요.
+
+<br>
+
+## 📦 패키지 구조
+
+```
+com.ganzithon.station
+├── user       닉네임 + PIN 가입 · 로그인, 담요 공개 설정
+├── room       대기실, 상황 칩, NPC, 도안 (시드 데이터)
+├── ticket     승차권(기다림 한 건), 열차 · 털실, 털실 톡톡, 전광판 통계
+├── blanket    담요 조각, 내 담요, 공개 카드
+├── realtime   실시간 대기실 (WebSocket, 메모리만 사용)
+└── global     설정, 보안, 예외, 공통 응답
+```
+
+```mermaid
+flowchart LR
+    realtime --> ticket --> blanket
+    realtime --> room
+    ticket --> room
+    ticket --> user
+    blanket --> user
+```
+
+화살표 방향으로만 호출해요 (순환 참조 금지). 자세한 규칙은 [DOMAIN.md](docs/DOMAIN.md)에 있어요.
+
+<br>
+
+## 👥 팀
+
+| 이름 | 담당 |
+|:---:|---|
+| **환희** | `ticket` · `realtime` · `global`, 인프라 · 배포 |
+| **상진** | `user` · `blanket` |
+| **하빈** | `room` |
+
+<br>
+
+## 🚀 시작하기
+
+> **Docker Desktop을 먼저 켜 두세요.** 로컬 DB와 테스트가 모두 Docker를 써요.
 
 ```bash
 git clone -b dev https://github.com/2026Ganzi-Thon/2026_GANZITHON_TEAM_06_BE.git
@@ -30,47 +148,40 @@ docker compose up -d         # 로컬 Postgres
 ./gradlew bootRun            # http://localhost:8080 (local 프로필, 기본값으로 바로 뜸)
 ```
 
-- 값을 바꾸고 싶으면 `.env.example`을 복사해 `.env`를 만듭니다 (`.env`는 커밋하지 않습니다).
-- 스키마와 시드 데이터(대기실, 상황 칩, 도안)는 서버가 뜰 때 Flyway가 자동으로 넣습니다.
-- 로컬 DB가 꼬였으면 `docker compose down -v`로 지우고 다시 띄웁니다.
+- 값을 바꾸고 싶으면 `.env.example`을 복사해 `.env`를 만들어요 (`.env`는 커밋하지 않아요).
+- 스키마와 시드 데이터(대기실, 상황 칩, 도안)는 서버가 뜰 때 Flyway가 자동으로 넣어요.
+- 로컬 DB가 꼬였으면 `docker compose down -v`로 지우고 다시 띄워요.
 
-## 빌드 · 테스트
+### 빌드 · 테스트
 
 ```bash
-./gradlew build    # PR 올리기 전에 통과해야 합니다
+./gradlew build    # PR 올리기 전에 통과해야 해요
 ```
 
-## 패키지 구조
+<br>
 
-| 패키지 | 맡는 것 | 담당 |
-|---|---|---|
-| `user` | 닉네임+PIN 가입·로그인, 담요 공개 설정 | 상진 |
-| `room` | 대기실, 상황 칩, NPC, 도안 (시드 데이터) | 하빈 |
-| `ticket` | 승차권(기다림 한 건), 열차·털실, 털실 톡톡, 전광판 통계 | 환희 |
-| `blanket` | 담요 조각, 내 담요, 공개 카드 | 상진 |
-| `realtime` | 실시간 대기실 (WebSocket, 메모리만 사용) | 환희 |
-| `global` | 설정, 보안, 예외, 공통 응답 | 환희 |
-
-## 문서
+## 📚 문서
 
 새 기능을 만들기 전에 꼭 읽어 주세요.
 
 | 문서 | 내용 |
 |---|---|
-| [DOMAIN.md](docs/DOMAIN.md) | 도메인 설계, 기능명세 ID별 담당, 용어집 |
-| [ERD.md](docs/ERD.md) | 테이블 설계 |
-| [API_CONVENTION.md](docs/API_CONVENTION.md) | URL, 응답 형식, 에러 코드, 인증, WebSocket 메시지 형식 |
-| [CODE_CONVENTION.md](docs/CODE_CONVENTION.md) | 레이어 규칙, 예시 코드, 스키마 변경 규칙 |
-| [GIT_CONVENTION.md](docs/GIT_CONVENTION.md) | 브랜치, 커밋, PR 규칙 |
-| [INFRA.md](docs/INFRA.md) | 인프라 · 배포 |
+| 🧭 [DOMAIN.md](docs/DOMAIN.md) | 도메인 설계, 기능명세 ID별 담당, 용어집 |
+| 🗂 [ERD.md](docs/ERD.md) | 테이블 설계 |
+| 🔌 [API_CONVENTION.md](docs/API_CONVENTION.md) | URL, 응답 형식, 에러 코드, 인증, WebSocket 메시지 형식 |
+| 🧱 [CODE_CONVENTION.md](docs/CODE_CONVENTION.md) | 레이어 규칙, 예시 코드, 스키마 변경 규칙 |
+| 🌿 [GIT_CONVENTION.md](docs/GIT_CONVENTION.md) | 브랜치, 커밋, PR 규칙 |
+| ☁️ [INFRA.md](docs/INFRA.md) | 인프라 · 배포 |
 
-## 협업 규칙 요약
+### 협업 규칙 요약
 
-- 작업 브랜치는 `dev`에서 `{type}/{기능명세 ID}_{설명}`으로 만들고 (예: `feat/ON-04_ticket_issue`), PR은 `dev`로 올립니다.
+- 작업 브랜치는 `dev`에서 `{type}/{기능명세 ID}_{설명}`으로 만들고 (예: `feat/ON-04_ticket_issue`), PR은 `dev`로 올려요.
 - PR 제목: `feat: [ON-04] 승차권 발급 API`. 승인 1명 이상, **Squash and merge**.
-- `dev`에 머지되면 GitHub Actions가 배포 서버에 자동으로 배포합니다.
+- `dev`에 머지되면 GitHub Actions가 배포 서버에 자동으로 배포해요.
 
-## WebSocket 메시지 명세
+<br>
+
+## 📡 WebSocket 메시지 명세
 
 Swagger가 WebSocket을 문서화하지 못해서 여기 표로 관리합니다 (형식은 [API_CONVENTION.md](docs/API_CONVENTION.md) 7장).
 메시지를 추가·변경하는 PR에서 이 표도 함께 갱신합니다.
@@ -115,6 +226,11 @@ const client = new Client({
 | `PASSENGER_CARD` | `/user/queue/events` | `ticketNumber`, `displayName`, `moodChip`, `startedTs`, `visibility`, `patternCodes`, `trainCount`, `serverTs` | 탭한 승객 카드 (MY-05). `visibility`가 `PUBLIC`이면 조각 도안(`patternCodes`, 최신부터 최대 9개)·승차권 번호·지나간 열차 수(`trainCount`)를, 그 외(`PRIVATE` 비공개, `NO_PIECE` 조각 없음, `GUEST` 비로그인)면 머문 시간(`startedTs`)과 상태 칩만 보여 주세요. 닉네임·종료 표식은 오지 않습니다 |
 | `ERROR` | `/user/queue/events` | `code`, `message`, `retryAfterMs`(있을 때만), `serverTs` | 요청 실패. `code`는 REST와 같은 에러 코드 |
 
+<details>
+<summary><b>📋 <code>passenger</code> · <code>onAirBroadcast</code> 필드</b></summary>
+
+<br>
+
 `passenger` (`passengers[]`의 원소)
 
 | 필드 | 설명 |
@@ -137,10 +253,18 @@ null이면 전광판에 기본 안내 문구를 보여 주세요: 방송을 한 
 
 `sentence` 예: `안내 말씀 드립니다. 104번 두근두근한 양님은 지금 '답장을 기다리는 중'입니다.`
 
-실패 `code`
+</details>
+
+<details>
+<summary><b>⚠️ 실패 <code>code</code></b></summary>
+
+<br>
+
 - 승객 카드: `REALTIME_NOT_JOINED`(그 방에 입장 안 함), `REALTIME_PASSENGER_NOT_FOUND`(그 번호의 승객이 방에 없음), `COMMON_INVALID_INPUT`(`ticketNumber` 누락)
 - 입장: `TICKET_NOT_FOUND`, `TICKET_FORBIDDEN`(내 승차권 아님), `TICKET_ALREADY_ENDED`, `TICKET_ROOM_MISMATCH`(다른 대기실 승차권), `COMMON_INVALID_INPUT`(형식 오류)
 - 리액션: `REALTIME_NOT_JOINED`(그 방에 입장 안 함), `COMMON_INVALID_INPUT`(`broadcastId`·`reaction` 누락, 목록에 없는 `reaction`)
 - 방송: `REALTIME_NOT_JOINED`(그 방에 입장 안 함), `BROADCAST_COOLDOWN`(+`retryAfterMs`), `BROADCAST_QUEUE_FULL`(방 대기열 20개 가득), `SITUATION_CHIP_NOT_FOUND`(그 방의 칩이 아님), `TICKET_ALREADY_ENDED`, `COMMON_INVALID_INPUT`(칩 누락)
+
+</details>
 
 > 계정 닉네임과 `ticketId`는 다른 승객에게 보내지 않습니다.
