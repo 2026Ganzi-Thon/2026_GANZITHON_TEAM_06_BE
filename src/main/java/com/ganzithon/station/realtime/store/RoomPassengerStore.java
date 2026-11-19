@@ -108,6 +108,16 @@ public class RoomPassengerStore {
         return members == null ? List.of() : List.copyOf(members.values());
     }
 
+    /** 그 방의 착석·입석 인원 (방 선택 화면). 아무도 없으면 0, 0 */
+    public synchronized Occupancy countByRoomCode(String roomCode) {
+        Map<Long, Passenger> members = rooms.get(roomCode);
+        if (members == null) {
+            return new Occupancy(0, 0);
+        }
+        int seated = (int) members.values().stream().filter(Passenger::isSeated).count();
+        return new Occupancy(seated, members.size() - seated);
+    }
+
     public int getSeatCount() {
         return seatCount;
     }
@@ -154,5 +164,12 @@ public class RoomPassengerStore {
      * @param remaining 퇴장 후 그 방 인원
      */
     public record Departure(Passenger passenger, int remaining) {
+    }
+
+    /**
+     * @param seatedCount   앉아 있는 승객 수
+     * @param standingCount 자리가 없어 서서 기다리는 승객 수
+     */
+    public record Occupancy(int seatedCount, int standingCount) {
     }
 }

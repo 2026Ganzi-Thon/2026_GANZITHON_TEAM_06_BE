@@ -90,6 +90,8 @@ const client = new Client({
 - 보낼 수 있는 곳은 `/app/...`(아래 표)뿐이고, 구독할 수 있는 곳은 `/topic/rooms/{roomCode}`와 `/user/queue/events`뿐입니다. 다른 목적지로 보낸 SEND·SUBSCRIBE는 서버가 에러 없이 버립니다.
 - 방송 문장·호칭 같은 텍스트는 HTML로 넣지 말고 텍스트로만 그려 주세요 (`textContent`, Phaser Text).
 - 시각은 모두 epoch ms입니다 (`serverTs`, `startedTs`).
+- 대기실 안에서는 폴링하지 않아도 됩니다. 입장, 퇴장, 방송, 리액션 모두 서버가 위 구독 경로로 보내 줍니다.
+- 입장 전 방 선택 화면(ON-02)의 방별 인원은 REST `GET /api/v1/rooms/occupancy`로 조회합니다 (토큰 없이 호출 가능, 5초 정도 간격으로 다시 조회).
 
 ### 클라이언트 → 서버
 
@@ -104,7 +106,7 @@ const client = new Client({
 
 | type | 받는 곳 | 필드 | 언제 |
 |---|---|---|---|
-| `ROOM_STATE` | `/user/queue/events` | `roomCode`, `myTicketNumber`, `seatCount`, `passengers[]`, `onAirBroadcast`, `serverTs` | 입장 직후 나에게만. 이 메시지로 화면을 처음 그립니다. `onAirBroadcast`가 있으면 전광판에 그 방송을 `remainingMs` 동안 보여 주세요 (방송 도중 입장·새로고침) |
+| `ROOM_STATE` | `/user/queue/events` | `roomCode`, `myTicketNumber`, `mySeatNumber`, `seatCount`, `passengers[]`, `onAirBroadcast`, `serverTs` | 입장 직후 나에게만. 이 메시지로 화면을 처음 그립니다. `mySeatNumber`는 내 좌석 번호, 서서 기다리면(입석) null이에요. `onAirBroadcast`가 있으면 전광판에 그 방송을 `remainingMs` 동안 보여 주세요 (방송 도중 입장·새로고침) |
 | `JOIN` | `/topic/rooms/{roomCode}` | `passenger`, `count`, `serverTs` | 새 승객 입장 (나 포함). 같은 승차권으로 다시 접속하면 오지 않습니다 |
 | `LEAVE` | `/topic/rooms/{roomCode}` | `ticketNumber`, `seatNumber`, `count`, `serverTs` | 승객 퇴장 (연결 끊김, 다른 방으로 이동, 기다림 종료). `seatNumber`는 비워진 좌석, 서 있던 승객이면 null. **착석 승객이 나가도 서 있던 승객은 앉지 않습니다** (빈 좌석은 다음에 들어오는 승객이 앉음). 그래서 `seatNumber`가 null인 승객은 끝까지 입석이고, 화면에는 그 승객들을 세어 "입석 +N명"으로만 보여 주면 됩니다 |
 | `BROADCAST_ACCEPTED` | `/user/queue/events` | `broadcastId`, `queuePosition`, `cooldownMs`, `displayName`, `serverTs` | 방송 요청이 대기열에 들어감. `cooldownMs` 동안 방송 버튼을 막아 주세요 |

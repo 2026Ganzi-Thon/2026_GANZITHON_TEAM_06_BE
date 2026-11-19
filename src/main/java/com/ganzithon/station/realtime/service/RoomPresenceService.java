@@ -52,7 +52,7 @@ public class RoomPresenceService {
         JoinResult result = roomPassengerStore.join(ticket, sessionId);
         Passenger passenger = result.passenger();
         long now = System.currentTimeMillis();
-        RoomStateMessage roomState = RoomStateMessage.of(roomCode, passenger.ticketNumber(),
+        RoomStateMessage roomState = RoomStateMessage.of(roomCode, passenger.ticketNumber(), passenger.seatNumber(),
                 roomPassengerStore.getSeatCount(),
                 roomPassengerStore.findByRoomCode(roomCode).stream().map(PassengerMessage::from).toList(),
                 broadcastStore.findOnAir(roomCode, now).map(OnAirBroadcastMessage::from).orElse(null),
