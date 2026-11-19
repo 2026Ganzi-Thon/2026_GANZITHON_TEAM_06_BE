@@ -11,8 +11,8 @@ import com.ganzithon.station.room.entity.MoodChip;
  * @param ticketNumber 보낸 승객
  * @param sentence     전광판 문장
  * @param remainingMs  전광판에 남은 노출 시간 (ms). 지나면 기본 안내 문구로 돌아갑니다
- * @param nodCount     지금까지 끄덕임한 승객 수
- * @param awwCount     지금까지 짠함한 승객 수
+ * @param nodCount     지금까지 끄덕끄덕한 승객 수
+ * @param sendCount    지금까지 전해요를 누른 승객 수
  */
 public record OnAirBroadcastMessage(
         String broadcastId,
@@ -24,7 +24,7 @@ public record OnAirBroadcastMessage(
         String sentence,
         long remainingMs,
         int nodCount,
-        int awwCount
+        int sendCount
 ) {
     public static OnAirBroadcastMessage from(OnAirSnapshot snapshot) {
         QueuedBroadcast broadcast = snapshot.broadcast();
@@ -38,6 +38,6 @@ public record OnAirBroadcastMessage(
                 BroadcastMessage.sentence(broadcast),
                 snapshot.remainingMs(),
                 snapshot.counts().nodCount(),
-                snapshot.counts().awwCount());
+                snapshot.counts().sendCount());
     }
 }

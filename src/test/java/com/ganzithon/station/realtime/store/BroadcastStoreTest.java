@@ -83,7 +83,7 @@ class BroadcastStoreTest {
 
         store.countReaction("RESULT", "a", 1L, Reaction.NOD, 100);
         store.countReaction("RESULT", "a", 1L, Reaction.NOD, 200);
-        store.countReaction("RESULT", "a", 1L, Reaction.AWW, 300);
+        store.countReaction("RESULT", "a", 1L, Reaction.SEND, 300);
 
         assertThat(store.countReaction("RESULT", "a", 2L, Reaction.NOD, 400))
                 .contains(new ReactionCounts(2, 1));
@@ -109,7 +109,7 @@ class BroadcastStoreTest {
         store.pollDue(DISPLAY);
 
         assertThat(store.isOnAir("RESULT", "a", DISPLAY)).isFalse();
-        assertThat(store.countReaction("RESULT", "b", 1L, Reaction.AWW, DISPLAY + 100))
+        assertThat(store.countReaction("RESULT", "b", 1L, Reaction.SEND, DISPLAY + 100))
                 .contains(new ReactionCounts(0, 1));
     }
 
