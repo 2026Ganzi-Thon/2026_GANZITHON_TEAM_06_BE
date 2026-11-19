@@ -43,6 +43,7 @@ class RoomJoinWebSocketTest extends StompIntegrationTest {
         assertThat((String) me.get("displayName")).endsWith("번 두근두근한 양");
         assertThat(me.get("moodChip")).isEqualTo("FLUTTERING");
         assertThat(me.get("seatNumber")).isEqualTo(1);
+        assertThat(roomState.get("mySeatNumber")).isEqualTo(1);
         assertThat(me).doesNotContainKeys("ticketId", "nickname");
 
         Map<String, Object> join = pollUntil(room, event -> "JOIN".equals(event.get("type")));
@@ -143,6 +144,8 @@ class RoomJoinWebSocketTest extends StompIntegrationTest {
                 .filter(passenger -> passenger.get("ticketNumber").equals(roomState.get("myTicketNumber")))
                 .findFirst().orElseThrow();
         assertThat(me.get("seatNumber")).isNull();
+        assertThat(roomState).containsKey("mySeatNumber");
+        assertThat(roomState.get("mySeatNumber")).isNull();
     }
 
     @Test
