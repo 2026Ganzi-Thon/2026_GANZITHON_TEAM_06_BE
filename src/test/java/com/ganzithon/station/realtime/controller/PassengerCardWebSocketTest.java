@@ -26,8 +26,8 @@ class PassengerCardWebSocketTest extends StompIntegrationTest {
     void 공개한_승객은_조각_도안_최신순과_열차_수가_오고_닉네임과_종료_표식은_없다() throws Exception {
         Long userId = insertUser();
         jdbcTemplate.update("update users set is_public = true where id = ?", userId);
-        insertPiece(userId, "PATTERN_01", "2026-11-10T10:00:00Z");
-        insertPiece(userId, "PATTERN_03", "2026-11-12T10:00:00Z");
+        insertPiece(userId, "PATTERN_HEART", "2026-11-10T10:00:00Z");
+        insertPiece(userId, "PATTERN_STAR", "2026-11-12T10:00:00Z");
         Joined target = joinAsUser("RESULT", userId, "CALM");
         Client viewer = joinNewGuest("RESULT");
 
@@ -39,7 +39,7 @@ class PassengerCardWebSocketTest extends StompIntegrationTest {
         assertThat(card.get("displayName")).isEqualTo(target.ticketNumber() + "번 고요한 양");
         assertThat(card.get("moodChip")).isEqualTo("CALM");
         assertThat(card.get("visibility")).isEqualTo("PUBLIC");
-        assertThat(card.get("patternCodes")).isEqualTo(List.of("PATTERN_03", "PATTERN_01"));
+        assertThat(card.get("patternCodes")).isEqualTo(List.of("PATTERN_STAR", "PATTERN_HEART"));
         assertThat(card.get("trainCount")).isInstanceOf(Integer.class);
         assertThat(card).containsKeys("startedTs", "serverTs").doesNotContainKeys("nickname", "endReason", "message");
     }
@@ -47,7 +47,7 @@ class PassengerCardWebSocketTest extends StompIntegrationTest {
     @Test
     void 비공개_승객은_머문_시간과_상태_칩만_온다() throws Exception {
         Long userId = insertUser();
-        insertPiece(userId, "PATTERN_01", "2026-11-10T10:00:00Z");
+        insertPiece(userId, "PATTERN_HEART", "2026-11-10T10:00:00Z");
         Joined target = joinAsUser("NO_REPLY", userId, "TIRED");
         Client viewer = joinNewGuest("NO_REPLY");
 
