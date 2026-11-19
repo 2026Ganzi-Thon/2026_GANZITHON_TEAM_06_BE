@@ -10,7 +10,7 @@ import java.util.concurrent.BlockingQueue;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 1초 리액션 (BR-03): 전광판 방송에 끄덕임·짠함으로 반응합니다. 방송 도중 입장했을 때의 전광판(BR-02)도 여기서 확인합니다.
+ * 1초 리액션 (BR-03): 전광판 방송에 끄덕끄덕·전해요으로 반응합니다. 방송 도중 입장했을 때의 전광판(BR-02)도 여기서 확인합니다.
  * 방송이 나와 있는 동안 반응·입장해야 해서 이 테스트만 노출 시간을 3초로 늘렸습니다.
  * "보내지 않음"은 그다음 리액션이 먼저 도착하는지로 확인합니다 (같은 방 메시지는 순서대로 옴).
  */
@@ -33,7 +33,7 @@ class ReactionWebSocketTest extends StompIntegrationTest {
         assertThat(reaction.get("ticketNumber")).isEqualTo(reactor.ticketNumber());
         assertThat(reaction.get("reaction")).isEqualTo("NOD");
         assertThat(reaction.get("nodCount")).isEqualTo(1);
-        assertThat(reaction.get("awwCount")).isEqualTo(0);
+        assertThat(reaction.get("sendCount")).isEqualTo(0);
         assertThat(reaction).containsKey("serverTs");
     }
 
@@ -47,25 +47,25 @@ class ReactionWebSocketTest extends StompIntegrationTest {
         String broadcastId = (String) pollUntil(room, event -> "BROADCAST".equals(event.get("type"))).get("broadcastId");
 
         reactor.client().react("GANZITHON_FINAL", Map.of("broadcastId", broadcastId, "reaction", "NOD"));
-        reactor.client().react("GANZITHON_FINAL", Map.of("broadcastId", broadcastId, "reaction", "AWW")); // 1초 안 → 버림
+        reactor.client().react("GANZITHON_FINAL", Map.of("broadcastId", broadcastId, "reaction", "SEND")); // 1초 안 → 버림
         // 같은 세션 메시지는 순서대로 처리되므로, 이 ERROR가 오면 앞의 연타 처리가 끝난 것 (다른 세션과는 순서 보장 없음)
         reactor.client().react("GANZITHON_FINAL", Map.of("reaction", "NOD"));
         assertError(reactor.client().nextEvent(), "COMMON_INVALID_INPUT");
         assertThat(nextReaction(room)).containsEntry("ticketNumber", reactor.ticketNumber())
-                .containsEntry("nodCount", 1).containsEntry("awwCount", 0);
+                .containsEntry("nodCount", 1).containsEntry("sendCount", 0);
 
-        broadcaster.client().react("GANZITHON_FINAL", Map.of("broadcastId", broadcastId, "reaction", "AWW"));
+        broadcaster.client().react("GANZITHON_FINAL", Map.of("broadcastId", broadcastId, "reaction", "SEND"));
 
         assertThat(nextReaction(room)).as("버려진 연타 대신 다음 승객의 리액션이 옴 (내 방송에도 반응 가능)")
                 .containsEntry("ticketNumber", broadcaster.ticketNumber())
-                .containsEntry("nodCount", 1).containsEntry("awwCount", 1);
+                .containsEntry("nodCount", 1).containsEntry("sendCount", 1);
 
         Thread.sleep(1_100);
         reactor.client().react("GANZITHON_FINAL", Map.of("broadcastId", broadcastId, "reaction", "NOD"));
 
-        assertThat(nextReaction(room)).as("1초 뒤에는 다시 보내지지만 같은 승객의 끄덕임은 다시 세지 않음")
+        assertThat(nextReaction(room)).as("1초 뒤에는 다시 보내지지만 같은 승객의 끄덕끄덕은 다시 세지 않음")
                 .containsEntry("ticketNumber", reactor.ticketNumber())
-                .containsEntry("nodCount", 1).containsEntry("awwCount", 1);
+                .containsEntry("nodCount", 1).containsEntry("sendCount", 1);
     }
 
     @Test
@@ -76,7 +76,7 @@ class ReactionWebSocketTest extends StompIntegrationTest {
         broadcaster.client().broadcast("NO_REPLY",
                 Map.of("situationChipCode", "NO_REPLY_WAITING_REPLY", "moodChip", "FLUTTERING"));
         Map<String, Object> broadcast = pollUntil(room, event -> "BROADCAST".equals(event.get("type")));
-        reactor.client().react("NO_REPLY", Map.of("broadcastId", broadcast.get("broadcastId"), "reaction", "AWW"));
+        reactor.client().react("NO_REPLY", Map.of("broadcastId", broadcast.get("broadcastId"), "reaction", "SEND"));
         nextReaction(room);
 
         String guestToken = newGuestToken();
@@ -94,7 +94,7 @@ class ReactionWebSocketTest extends StompIntegrationTest {
         assertThat(onAir.get("situationChipCode")).isEqualTo("NO_REPLY_WAITING_REPLY");
         assertThat(((Number) onAir.get("remainingMs")).longValue()).isBetween(1L, 3_000L);
         assertThat(onAir.get("nodCount")).isEqualTo(0);
-        assertThat(onAir.get("awwCount")).isEqualTo(1);
+        assertThat(onAir.get("sendCount")).isEqualTo(1);
     }
 
     @Test

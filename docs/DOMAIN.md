@@ -73,7 +73,7 @@ realtime ──→ ticket ──→ blanket
 | 담요 조각 | `BlanketPiece` | `Piece`만 쓰지 않습니다 |
 | 종료 사유 | `EndReason` | `ANSWERED` 답이 왔어요 / `UNEXPECTED` 기대와 달랐어요 / `LET_GO` 내려놓을래요 |
 | 방송 | `Broadcast` | 상황 칩 + 상태 칩 조합 |
-| 리액션 | `Reaction` | `NOD` 끄덕임 / `AWW` 짠함 |
+| 리액션 | `Reaction` | `NOD` 끄덕끄덕 / `SEND` 전해요 |
 | 승객 | `Passenger` | 지금 대기실에 접속한 양. `realtime`에서만 사용 |
 | 가상 승객 | `VirtualPassenger` | 시연용으로 자동 방송하는 승객 |
 | NPC | `Npc` | 방마다 1명, 조용히 앉아만 있음. 방송·리액션 불참 |

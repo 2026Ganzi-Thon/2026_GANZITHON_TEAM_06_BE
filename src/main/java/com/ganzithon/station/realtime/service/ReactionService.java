@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 
 /**
- * 1초 리액션 (BR-03, 담당: 환희). 전광판 방송에 끄덕임·짠함으로 반응하고, DB에 남기지 않고 방에 바로 전파합니다.
+ * 1초 리액션 (BR-03, 담당: 환희). 전광판 방송에 끄덕끄덕·전해요로 반응하고, DB에 남기지 않고 방에 바로 전파합니다.
  * 리액션은 가벼운 동작이라 연타·지난 방송 같은 경우는 에러 없이 조용히 버립니다.
  */
 @Service
@@ -27,7 +27,7 @@ public class ReactionService {
     private final ReactionStore reactionStore;
 
     /**
-     * 방에 보낼 REACTION (그 방송의 끄덕임·짠함 수 포함). 아래 경우에는 empty (보내지 않음)
+     * 방에 보낼 REACTION (그 방송의 끄덕끄덕·전해요 수 포함). 아래 경우에는 empty (보내지 않음)
      * <ul>
      *     <li>broadcastId가 지금 전광판에 나오는 방송이 아님 (이미 내려갔거나 없는 방송)</li>
      *     <li>1초 안에 또 보냄 (승차권 기준)</li>

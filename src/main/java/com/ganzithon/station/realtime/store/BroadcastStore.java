@@ -134,7 +134,7 @@ public class BroadcastStore {
             return Optional.empty();
         }
         OnAir current = onAir.get(roomCode);
-        (reaction == Reaction.NOD ? current.nodded : current.awwed).add(ticketId);
+        (reaction == Reaction.NOD ? current.nodded : current.sent).add(ticketId);
         return Optional.of(current.counts());
     }
 
@@ -154,10 +154,10 @@ public class BroadcastStore {
     /**
      * 전광판 방송 하나의 리액션 수.
      *
-     * @param nodCount 끄덕임한 승객 수
-     * @param awwCount 짠함한 승객 수
+     * @param nodCount  끄덕끄덕한 승객 수
+     * @param sendCount 전해요를 누른 승객 수
      */
-    public record ReactionCounts(int nodCount, int awwCount) {
+    public record ReactionCounts(int nodCount, int sendCount) {
     }
 
     /**
@@ -174,7 +174,7 @@ public class BroadcastStore {
         private final QueuedBroadcast broadcast;
         private final long dispatchedAt;
         private final Set<Long> nodded = new HashSet<>();
-        private final Set<Long> awwed = new HashSet<>();
+        private final Set<Long> sent = new HashSet<>();
 
         private OnAir(QueuedBroadcast broadcast, long dispatchedAt) {
             this.broadcast = broadcast;
@@ -182,7 +182,7 @@ public class BroadcastStore {
         }
 
         private ReactionCounts counts() {
-            return new ReactionCounts(nodded.size(), awwed.size());
+            return new ReactionCounts(nodded.size(), sent.size());
         }
     }
 }
