@@ -37,8 +37,8 @@ public record TicketCreateResponse(
                 example = "2026-11-16T21:30:00+09:00")
         Instant serverTime,
 
-        @Schema(description = "공용 열차 간격(ms). 모든 승객이 같은 시각표: epoch부터 이 값마다 1대 (30분이면 매시 00분·30분)",
-                example = "1800000")
+        @Schema(description = "공용 열차 간격(ms). 모든 승객이 같은 시각표: epoch부터 이 값마다 1대 (10분이면 매시 00·10·20…분)",
+                example = "600000")
         long trainIntervalMs,
 
         @Schema(description = "내 첫 열차 시각 = 시작 + 10초 (TR-01). 이 열차는 내 화면에만 지나갑니다", example = "2026-11-16T21:30:10+09:00")

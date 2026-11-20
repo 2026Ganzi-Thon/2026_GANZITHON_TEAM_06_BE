@@ -49,8 +49,8 @@ station:
   virtual-passenger:              # 시연용 가상 승객 자동 방송 (RM-05). 실제 승객이 있는 방만
     enabled: ${VIRTUAL_PASSENGER_ENABLED:true}
     first-delay: 10s              # 방에 처음 들어오고 첫 가상 방송까지
-    min-interval: 40s             # 다음 가상 방송까지 40~90초 랜덤
-    max-interval: 90s
+    min-interval: ${VIRTUAL_PASSENGER_MIN_INTERVAL:4m}  # 다음 가상 방송까지 4~6분 랜덤. 시연 땐 실제 승객이 많아서 드물게
+    max-interval: ${VIRTUAL_PASSENGER_MAX_INTERVAL:6m}
   realtime:
     seat-count: ${SEAT_COUNT:30}  # 대기실 하나의 좌석 수 (디자인: 의자 10개 × 3명). 다 차면 서서 기다림
     broadcast-cooldown: 30s       # 승객 한 명의 방송 간격 (BR-01)
@@ -82,8 +82,8 @@ station:
     # 로컬 전용 값. 배포에서는 절대 쓰지 않습니다.
     secret: ${JWT_SECRET:local-only-secret-change-me-0123456789abcdef}
   train:
-    # 열차 간격(초). 열차 1대 = 털실 1올. 실제 서비스 30분(1800), 시연 영상 20초. 로컬 기본은 20
-    interval-seconds: ${TRAIN_INTERVAL_SECONDS:20}
+    # 열차 간격(초). 열차 1대 = 털실 1올. 서비스·시연 10분(600, 매시 00·10·20…분), 시연 영상 20초. 로컬 기본도 600
+    interval-seconds: ${TRAIN_INTERVAL_SECONDS:600}
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS:http://localhost:*}
 

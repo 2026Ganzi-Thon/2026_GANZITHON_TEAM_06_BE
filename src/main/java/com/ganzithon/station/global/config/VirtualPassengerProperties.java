@@ -11,8 +11,8 @@ import java.time.Duration;
  *
  * @param enabled     켜기/끄기 (환경변수 VIRTUAL_PASSENGER_ENABLED, 기본 true). 문제가 생기면 서버 .env에서 끕니다
  * @param firstDelay  방에 실제 승객이 처음 들어오고 첫 가상 방송까지 (10초)
- * @param minInterval 다음 가상 방송까지 최소 (40초)
- * @param maxInterval 다음 가상 방송까지 최대 (90초). 그 사이에서 랜덤
+ * @param minInterval 다음 가상 방송까지 최소 (환경변수 VIRTUAL_PASSENGER_MIN_INTERVAL, 기본 4분)
+ * @param maxInterval 다음 가상 방송까지 최대 (환경변수 VIRTUAL_PASSENGER_MAX_INTERVAL, 기본 6분). 그 사이에서 랜덤
  */
 @Validated
 @ConfigurationProperties(prefix = "station.virtual-passenger")
