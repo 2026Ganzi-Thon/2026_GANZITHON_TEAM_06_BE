@@ -22,13 +22,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 가상 승객 자동 방송 규칙 (Spring 없이, 시각을 직접 넘김). 첫 방송 10초, 이후 40~90초, 전광판 노출 15초.
+ * 가상 승객 자동 방송 규칙 (Spring 없이, 시각을 직접 넘김). 첫 방송 10초, 이후 4~6분, 전광판 노출 15초.
  */
 class VirtualBroadcastServiceTest {
 
     private static final long FIRST = 10_000;
-    private static final long MIN = 40_000;
-    private static final long MAX = 90_000;
+    private static final long MIN = 240_000;
+    private static final long MAX = 360_000;
     private static final long DISPLAY = 15_000;
 
     private final RoomService roomService = mock(RoomService.class);
@@ -78,7 +78,7 @@ class VirtualBroadcastServiceTest {
     }
 
     @Test
-    void 다음_가상_방송은_40초에서_90초_사이다() {
+    void 다음_가상_방송은_4분에서_6분_사이다() {
         enter("RESULT", "s1");
         service.tick(0);
         service.tick(FIRST);
